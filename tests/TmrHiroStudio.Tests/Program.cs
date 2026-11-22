@@ -263,7 +263,7 @@ namespace TmrHiroStudio.Tests
             byte[] valid = BuildSrp(new[]
             {
                 new SrpInstruction { Type = 80, Flags = 20, Data = new byte[] { 0x12, 0x34 } },
-                new SrpInstruction { Type = 0, Flags = 0, Data = BinaryUtil.ShiftJisStrict.GetBytes("PAC 腳本") },
+                new SrpInstruction { Type = 0, Flags = 0, Data = BinaryUtil.ShiftJisStrict.GetBytes("PAC script") },
                 new SrpInstruction { Type = 16, Flags = 3, Data = Array.Empty<byte>() }
             });
             Assert(ScriptCodec.HasPacSrpSignature(valid), "合成 SRP 缺少預期 PAC signature。");
@@ -278,7 +278,7 @@ namespace TmrHiroStudio.Tests
             byte[] original = BuildSrp(new[]
             {
                 new SrpInstruction { Type = 80, Flags = 20, Data = new byte[] { 0x12, 0x34 } },
-                new SrpInstruction { Type = 0, Flags = 0, Data = BinaryUtil.GbkStrict.GetBytes("PAC 轉換層") },
+                new SrpInstruction { Type = 0, Flags = 0, Data = BinaryUtil.GbkStrict.GetBytes("PAC transform layer") },
                 new SrpInstruction { Type = 16, Flags = 3, Data = Array.Empty<byte>() }
             });
             byte[] transformed = ScriptCodec.TransformPacScriptLayer(original);
@@ -360,3 +360,4 @@ namespace TmrHiroStudio.Tests
         }
     }
 }
+
