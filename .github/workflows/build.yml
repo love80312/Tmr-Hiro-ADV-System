@@ -53,6 +53,11 @@ jobs:
             Copy-Item $config (Join-Path $package 'TmrHiroStudio.exe.config') -Force
           }
 
+          $puaMap = Join-Path $exe.DirectoryName 'cp932-pua-map.tsv'
+          if (Test-Path $puaMap) {
+            Copy-Item $puaMap (Join-Path $package 'cp932-pua-map.tsv') -Force
+          }
+
           Copy-Item 'README.md' $package -Force
           Copy-Item 'LICENSE' $package -Force
           Copy-Item 'THIRD_PARTY_NOTICES.md' $package -Force
