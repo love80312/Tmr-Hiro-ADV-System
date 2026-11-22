@@ -7,7 +7,7 @@
 - 介面：WPF
 - 發布：GitHub Actions Artifact，免安裝 ZIP
 - 建置：GitHub Actions；可直接透過 GitHub 網頁操作
-- 版本：1.0.2
+- 版本：1.0.3
 
 > 引擎名稱依公開格式研究採用 Tmr-Hiro ADV System；`AGE_System` 是否為正式內部名稱仍未獲充分證實。
 
@@ -33,32 +33,34 @@
 
 ### SRP／VAR 腳本
 
-- SRP ↔ UTF-8 TXT；VAR ↔ UTF-8 TXT。
-- SRP 匯出會比較 CP932／UTF-8 及 Data nibble swap／不交換候選，避免將所有 SRP 一律當作相同轉換狀態。
-- SRP v2 TXT 標頭記錄實際採用的 `Encoding` 與 `Transform`。回封依標頭反向處理，不能刪除或改寫這些欄位。
-- VAR v2 TXT 標頭記錄 `Encoding`，支援 CP932、UTF-8、RAW。
+- SRP／VAR TXT 一律以 UTF-8（無 BOM）儲存；TXT 內的 `Encoding` 決定資源 Data 的原始文字編碼。
+- 手動支援 CP932／Shift-JIS、GBK／CP936、UTF-8、RAW；預設 CP932。簡體中文版請在匯出前選 GBK／CP936。
+- SRP 的 `Transform` 與文字編碼獨立，可選 NONE、NIBBLE_SWAP 或自動偵測；預設 NONE，不會因選擇 GBK 而自動交換 nibble。
+- 新版 SRP／VAR TXT 使用 v3 標頭，回封完全依標頭使用的編碼與 Transform；舊版 v1／v2 TXT 仍可回編。
 - Type 0／1 才按文字資料處理；Type 2／3、Type 80 及未知 Type 以 `\xHH` 保留位元組，避免把圖片／音效／未知二進位誤當文字。
-- CP932 EUDC 私用造字可由 `cp932-pua-map.tsv` 提供顯示提示；TXT 使用明確 `\g{F040|字形}` token，避免一般同字漢字被反向轉成 EUDC。
-- CP932／UTF-8 無法可靠判斷時使用 RAW 十六進位表示，仍可原樣回封，但不應把 RAW Data 當一般文字編輯。
+- CP932 EUDC 私用造字可由 `cp932-pua-map.tsv` 提供顯示提示；TXT 使用明確 `\g{F040|字形}` token，避免一般同字漢字被反向轉成 EUDC。GBK／CP936 的未知私用造字區沒有通用字形表，會保留為 `\xHH` 原始 bytes。
+- 選擇 RAW 時只輸出 `\xHH` 位元組序列；適合保留未知／非文字 Data，不應把 RAW 內容當一般文字編輯。
 - 支援先前版本 TXT 標頭及 croCKer 舊格式的回編相容路徑；舊 croCKer 無標頭 TXT 固定按 CP932 讀取，新格式標頭／UTF-8 BOM 按 UTF-8 讀取，避免靠「UTF-8 是否剛好能解碼」誤判日文 CP932。
 
 ## SRP 編碼及轉換說明
 
-SRP 可能經過不同來源流程：直接取得的 SRP 與從 PAC 解包後的 SRP，其 Data 可能處於不同 nibble swap 階段。舊版程式固定交換或固定不交換，會使其中一種來源解碼錯誤。
+1.0.3 將文字編碼與 SRP Data Transform 完全分離。匯出面板預設為 `CP932 + NONE`；簡體中文版請改選 `GBK／CP936`。直接取得的 SRP 若已知 Data 經過 nibble swap，再獨立選擇 `NIBBLE_SWAP`。自動偵測只作輔助，不能取代已知遊戲版本的手動設定。
 
-1.0.2 匯出時只用 Type 0／1 的資料作候選評估，嘗試 CP932／UTF-8，並比較 nibble swap／不交換。結果寫入 TXT，例如：
+新 SRP TXT 標頭範例：
 
 ```text
-TMRHIRO-SRP-TEXT/2
-Encoding: CP932
+TMRHIRO-SRP-TEXT/3
+Encoding: GBK
 Transform: NONE
-
-Type: 0
-Flags: 0
-Data: 日本語の台詞
+HeaderCount: 323
+ParsedCount: 323
 ```
 
-另一種來源可能記錄 `Transform: NIBBLE_SWAP`。請保留 TXT 標頭，回封時程式會使用該欄位還原位元組。此自動判斷是依文字特徵選出最合理候選，不是對所有遊戲變體的數學保證；RAW 是無法可靠判讀時的資料保護結果。
+`HeaderCount` 保留原始 SRP count 欄位；只要指令筆數未變，回封保留該欄位原值。若新增／刪除指令，回封才將 count 更新為實際指令數。`ParsedCount` 是來源實際解析到的指令數。Type／Flags、非文字 Data、指令順序及 footer 會依原內容重建。
+
+VAR TXT 使用 `TMRHIRO-VAR-TEXT/3`，並在標頭記錄 `Encoding`。CP932 EUDC 對應仍只在 CP932 模式使用；GBK 無法解碼或無法精確往返的位元組會輸出為 `\xHH`，避免以替代字元破壞資料。
+
+Nibble swap 是每個 byte 的高低 4 位交換，不是字元編碼。PAC 層的 SRP 轉換與 TXT 標頭的 SRP Data Transform 是兩個不同步驟，不可因為選 GBK 就推定要交換。
 
 ## 私用造字對照表
 
@@ -105,21 +107,19 @@ F040<TAB>E000<TAB>漢
 
 1. 選擇 `.srp`／`.var` 或資料夾，使用個別匯出功能；也可選擇「SRP + VAR → TXT」。
 2. 使用 UTF-8 編輯器修改 TXT。
-3. SRP v2 請保留 `TMRHIRO-SRP-TEXT/2`、`Encoding:` 及 `Transform:` 標頭；VAR v2 請保留 `TMRHIRO-VAR-TEXT/2` 及 `Encoding:`。
+3. 新版 SRP／VAR TXT 請保留 v3 標頭與所有欄位；舊版 v1／v2 標頭仍可回編。
 4. 使用 TXT → SRP／VAR 回封，再將資源放回 PAC 解包資料夾。
 
 若 TXT 標頭顯示 `Encoding: RAW`，代表程式無法可靠判斷文字編碼；內容以 `\xHH` 保留，請勿直接把十六進位序列改成猜測的漢字。
 
 ## GitHub Actions 建置
 
-本次完整覆蓋／新增檔案清單及網頁上傳方式請見 `docs/UPLOAD_INSTRUCTIONS_1.0.2.md`。
+修正設計請見 `docs/ENCODING_AND_SRP_FIXES_1.0.3.md`；檔案覆蓋／新增及網頁上傳方式請見 `docs/UPLOAD_INSTRUCTIONS_1.0.3.md`。
 
 1. 將本專案檔案上傳至 Repository 根目錄，保留 `.github/workflows/build.yml` 路徑。
 2. 開啟 Actions，執行 **Build TmrHiroStudio**。
 3. Workflow 會 restore、build Release x64、執行自動回歸測試，全部成功後才準備 Artifact。
 4. 下載 `TmrHiroStudio-Win10-x64`，解壓縮一次即可看到 `TmrHiroStudio.exe`、設定檔（若有）、`cp932-pua-map.tsv` 及文件。
-
-Artifact 不會再包含一個手動產生的內層 ZIP。
 
 ## 專案結構
 
@@ -127,10 +127,10 @@ Artifact 不會再包含一個手動產生的內層 ZIP。
 Tmr-Hiro-ADV-System/
 ├─ .github/workflows/build.yml
 ├─ docs/
-│  ├─ FIXES_1.0.2.md
+│  ├─ ENCODING_AND_SRP_FIXES_1.0.3.md
 │  ├─ FORMAT_NOTES.md
 │  ├─ TEST_PLAN.md
-│  └─ UPLOAD_INSTRUCTIONS_1.0.2.md
+│  └─ UPLOAD_INSTRUCTIONS_1.0.3.md
 ├─ src/TmrHiroStudio/
 │  ├─ Core/
 │  │  ├─ BinaryUtil.cs
@@ -144,13 +144,14 @@ Tmr-Hiro-ADV-System/
 │  ├─ MainWindow.xaml.cs
 │  ├─ MainWindow.BatchEnhancements.cs
 │  ├─ MainWindow.ScriptEnhancements.cs
+│  ├─ MainWindow.ScriptEncodingSettings.cs
 │  ├─ InternalsVisibleTo.cs
 │  ├─ cp932-pua-map.tsv
 │  └─ TmrHiroStudio.csproj
 ├─ tests/TmrHiroStudio.Tests/
 │  ├─ Program.cs
 │  └─ TmrHiroStudio.Tests.csproj
-├─ test/00_01.srp
+├─ TmrHiroStudio.sln
 ├─ LICENSE
 ├─ THIRD_PARTY_NOTICES.md
 └─ README.md
@@ -158,11 +159,11 @@ Tmr-Hiro-ADV-System/
 
 ## 已知限制
 
-- SRP 編碼／轉換判斷採特徵評分；不同遊戲分支或非典型腳本可能需要新增已知樣本及格式規則。
+- 手動模式依使用者選擇的編碼與 Transform 執行；只有選擇 AUTO 時才使用特徵評分。CP932 與 GBK 共享許多漢字碼位，AUTO 不保證能分辨簡體中文與日文，建議按遊戲語系手動指定。
 - Type 2／3 按參考分類保守視為二進位；Type 80 及未知 Type 不猜測語意。
-- EUDC 字形提示表刻意不填猜測資料。沒有實際字型／碼表時，部分簡體或日文遊戲自訂字仍會以 `\xHH` 或 `\g{}` 表示。
+- EUDC 字形提示表刻意不填猜測資料。沒有實際字型／碼表時，CP932 自訂字可能以 `\xHH` 或明確 `\g{}` token 表示；GBK／CP936 私用造字則以 `\xHH` 保留。
 - GRD 新輸出會重新編碼成 RLE，不保留 Huffman／LZ77 原始壓縮位元流；驗收以像素與 metadata 為準。
-- 自動測試涵蓋固定 SRP 樣本、合成日文 CP932／UTF-8、兩種 nibble 狀態、VAR、PUA 安全表示、原子寫入與 GRD 像素往返；尚不能取代所有商業遊戲實機測試。
+- 自動測試使用合成資料，涵蓋 CP932／GBK／UTF-8／RAW、SRP／VAR 往返、獨立 nibble swap、SRP count 欄位保留／更新、舊版 TXT v2 相容，以及 PAC SRP 完整結構檢查；測試項目及實機測試清單見 `docs/TEST_PLAN.md`，仍不能取代真實 PAC／遊戲實機測試。
 - 請先用合法持有的遊戲資源副本測試，確認遊戲能讀取重建檔案後再替換正式資源。
 
 ## 授權與參考

@@ -1,4 +1,4 @@
-# 格式實作筆記（1.0.2）
+# 格式實作筆記（1.0.3）
 
 ## PAC
 
@@ -54,28 +54,33 @@ PNG → GRD 新建資料使用 RLE；不承諾保留原壓縮位元流。驗證�
 - 前 4 bytes 是指令數欄位。
 - 每筆指令：UInt16 length、Int16 type、Int16 flags、`length - 4` bytes Data。
 - 已觀察到 Type 16／Flags 3／空 Data 為終止指令；解析以 footer 與檔案邊界驗證。
-- 參考 `croCKer/Srp.cs` 對 Type 0／1 的描述是遊戲文字／選項；Type 2／3 是圖像／音效。由於遊戲分支可能不同，1.0.2 只把 Type 0／1 當文字候選，Type 2／3／80／未知型別一律保留 bytes。
+- 參考 `croCKer/Srp.cs` 對 Type 0／1 的描述是遊戲文字／選項；Type 2／3 是圖像／音效。由於遊戲分支可能不同，1.0.3 只把 Type 0／1 當文字候選，Type 2／3／80／未知型別一律保留 bytes。
 
-### SRP TXT v2
+### SRP TXT v3（目前匯出格式）
 
 ```text
-TMRHIRO-SRP-TEXT/2
+TMRHIRO-SRP-TEXT/3
 Encoding: CP932
 Transform: NONE
+HeaderCount: 323
+ParsedCount: 323
 
 Type: 0
 Flags: 0
 Data: 日本語の台詞
 ```
 
-- `Encoding`：`CP932`、`UTF8` 或 `RAW`。
-- `Transform`：`NONE` 或 `NIBBLE_SWAP`。
-- 匯出時只用 Type 0／1 資料比較候選；回封依標頭反向轉換。
+- `Encoding`：`CP932`、`GBK`（Windows-936／CP936）、`UTF8` 或 `RAW`；TXT v3 由使用者選擇。
+- `Transform`：`NONE` 或 `NIBBLE_SWAP`；與文字編碼分開選擇。
+- `HeaderCount`：來源 SRP 開頭 UInt32 count 欄位原值。
+- `ParsedCount`：依指令邊界及 footer 實際解析到的指令數。
+- 若指令筆數未變，回封保留原始 `HeaderCount`；新增／刪除指令後才更新成實際筆數。
+- `AUTO` 仍可選，但只按文字特徵輔助判斷；CP932 與 GBK 對共同漢字無法可靠區分，建議手動指定。
 - `RAW` 時文字 Data 必須以連續 `\xHH` 表示，避免臆測。
 - Type 2／3／80／未知型別的 Data 使用 `\xHH` 保留位元組。
 - `\g{F040|提示字形}` 是 EUDC 明確 token，只回寫指定兩個位元組。
 
-沒有工具標頭的 croCKer 舊 TXT 使用 CP932 及 nibble swap 相容模式。舊版本專案 `TMRHIRO-SRP-TEXT/1` 使用 CP932、Transform NONE。新 TXT 請勿刪除 v2 標頭。
+沒有工具標頭的 croCKer 舊 TXT 使用 CP932 及 nibble swap 相容模式。舊版本專案 `TMRHIRO-SRP-TEXT/1` 使用 CP932、Transform NONE。新 TXT 請勿刪除 v3 標頭；v1／v2 標頭仍保留相容讀取。
 
 ## VAR
 
@@ -83,16 +88,16 @@ Data: 日本語の台詞
 - 最後一筆必須為 ASCII `[END]`。
 - 新建每筆長度不得超過 32767 bytes。
 
-### VAR TXT v2
+### VAR TXT v3（目前匯出格式）
 
 ```text
-TMRHIRO-VAR-TEXT/2
-Encoding: CP932
-日本語の変数名
+TMRHIRO-VAR-TEXT/3
+Encoding: GBK
+简体中文变量
 [END]
 ```
 
-- `Encoding`：`CP932`、`UTF8` 或 `RAW`。
+- `Encoding`：`CP932`、`GBK`（Windows-936／CP936）、`UTF8` 或 `RAW`。
 - 不在 metadata 與資料間插入空白分隔行，第一筆空字串因此可保留。
 - 無法可靠判定編碼時，以 `RAW` + `\xHH` 形式保留 bytes。
 

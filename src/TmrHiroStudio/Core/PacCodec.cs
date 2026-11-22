@@ -479,8 +479,16 @@ namespace TmrHiroStudio.Core
                 catch { }
             }
 
-            if (entry.Size >= 10 && ScriptCodec.LooksLikePacSrp(head))
-                return ".srp";
+            if (entry.Size >= 10 && ScriptCodec.HasPacSrpSignature(head) && entry.Size <= 256L * 1024L * 1024L)
+            {
+                // 不再只憑 32-byte header sample 將資源判為 SRP。
+                // 必須讀取完整資源並通過每筆指令長度、footer 與邊界驗證。
+                byte[] candidate = new byte[(int)entry.Size];
+                source.Position = entry.Offset;
+                ReadExactly(source, candidate, 0, candidate.Length);
+                if (ScriptCodec.LooksLikePacSrp(candidate))
+                    return ".srp";
+            }
             if (entry.Size >= 9 && head.Length >= 9 && head[0] == 0x44 &&
                 BinaryUtil.ReadUInt32(head, 5) == entry.Size - 9)
                 return ".twav";

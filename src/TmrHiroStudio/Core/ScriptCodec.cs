@@ -17,11 +17,26 @@ namespace TmrHiroStudio.Core
     /// </summary>
     internal static class ScriptCodec
     {
-        public static bool LooksLikePacSrp(byte[] data)
+        public static bool HasPacSrpSignature(byte[] data)
         {
             return data != null && data.Length >= 10 &&
                    BinaryUtil.ReadUInt16(data, 4) == 6 &&
                    BinaryUtil.ReadUInt32(data, 6) == 0x00140050;
+        }
+
+        public static bool LooksLikePacSrp(byte[] data)
+        {
+            if (!HasPacSrpSignature(data)) return false;
+            try
+            {
+                // 前 10 bytes 只作快速簽章；完整結構、所有長度邊界及 footer 都必須有效。
+                ReadSrpInstructions(data);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>

@@ -11,6 +11,11 @@ namespace TmrHiroStudio.Core
             932,
             EncoderFallback.ExceptionFallback,
             DecoderFallback.ExceptionFallback);
+        // Windows-936／GBK。使用 ExceptionFallback，禁止將無法表示的字元默默替換成問號。
+        public static readonly Encoding GbkStrict = Encoding.GetEncoding(
+            936,
+            EncoderFallback.ExceptionFallback,
+            DecoderFallback.ExceptionFallback);
         public static readonly Encoding Utf8Strict = new UTF8Encoding(false, true);
 
         public static ushort ReadUInt16(byte[] data, int offset)

@@ -1,62 +1,56 @@
-# 自動與手動回歸測試
+# 自動與手動回歸測試（1.0.3）
 
-## GitHub Actions 自動測試
+## 自動測試
 
-Workflow 會建置應用程式，接著執行 `tests/TmrHiroStudio.Tests`。任一測試失敗，Artifact 不會上傳。
+GitHub Actions 會先建置 WPF 主程式及 `tests/TmrHiroStudio.Tests`，再執行測試程式。任一階段失敗時，不會上傳免安裝 Artifact。測試資料由程式即時建立，不依賴外部 `test/00_01.srp` 樣本。
 
-目前自動測試涵蓋：
+自動測試共 17 項：
 
-- 固定 `test/00_01.srp`：323 筆指令、SRP TXT v2 匯出及完整往返。
-- 日文 CP932 SRP：未交換及 nibble-swapped 兩種資料狀態。
-- 混有控制碼的 CP932 日文 SRP：文字仍應可讀，控制碼以 `\uXXXX` 往返。
-- UTF-8 日文 SRP：編碼判斷及二進位往返。
-- 無法可靠辨識的 SRP：降級為 RAW `\xHH` 並 byte-exact 往返。
-- PAC SRP nibble swap：同一轉換執行兩次必須還原。
-- Type 2／3：不能被當成文字，且 bytes 必須完整往返。
-- CP932／UTF-8 日文 VAR：資料、長度及 `[END]`。
-- VAR 第一筆空字串：匯出／回封不得遺失空紀錄。
-- 一般漢字與 EUDC：一般漢字不得被反向錯轉成 EUDC；映射字元以明確 `\g{}` token 回寫，未映射字元保留 hex。
-- 原子寫入：預設拒絕覆蓋，並確認原檔 bytes 不變。
-- GRD：PNG → GRD → PNG 的 BGRA／Alpha 逐 byte 一致，且預設拒絕覆蓋。
+1. GBK／CP936 SRP 手動編碼及 byte-exact 往返。
+2. GBK／CP936 SRP 搭配獨立 `NIBBLE_SWAP` 的往返。
+3. CP932 SRP 手動編碼往返。
+4. UTF-8 SRP 手動編碼往返。
+5. RAW SRP 對未知位元組的逐 byte 保留。
+6. 無效 GBK 位元組以 `\xHH` 保留，不使用替代字元。
+7. GBK／CP936 私用造字 bytes 以 `\xHH` 保留，不當成通用 Unicode 字形。
+8. SRP 原始 `HeaderCount` 在未改變指令筆數時保留。
+9. 新增／刪除指令後更新 `HeaderCount`。
+10. 舊版 SRP TXT v2 相容回封。
+11. GBK／CP936 VAR 手動編碼往返。
+12. CP932 VAR 往返。
+13. UTF-8 VAR 往返。
+14. RAW VAR 往返。
+15. 舊版 VAR TXT v2 相容回封。
+16. PAC SRP 必須通過完整指令結構及 footer 驗證，僅有開頭標記的截斷資料不得被識別為 SRP。
+17. PAC 層 nibble swap 的可逆性。
 
-這些測試不等於完整 GUI 測試，也不涵蓋所有不同遊戲版本或所有 GRD 壓縮樣本。
+以上測試驗證合成資料在編碼、轉換及結構上的預期行為；不代表已使用 `cn.pac`／`jp.pac` 完成實機驗證，也不代表所有引擎變體均已確認。
 
 ## 手動實機測試
 
-### PAC
+### PAC／SRP
 
-- [ ] V1、V2 PAC 分別解包；比對資源數量、索引順序及 manifest。
-- [ ] 使用日文／全形檔名，原樣回封後由遊戲載入。
-- [ ] PAC 原樣回封：比較未修改資源 bytes；SRP 需考慮 PAC 儲存層轉換。
-- [ ] 修改一個 GRD、一個 SRP，刪除一個資源，再回封並實際載入。
-- [ ] 多 PAC 批次解包遇到壞檔時，確認輸出目錄沒有留下半套已提交結果。
-- [ ] 將輸出目錄指定為既有資料夾，確認既有檔案不會被覆蓋。
-- [ ] 測試截斷索引、錯誤 data_offset、負數 V2 offset、越界資源範圍及重複名稱。
+- [ ] 分別使用實際日文版及簡體中文版 PAC 解包，確認 SRP 都能被識別，而不是大量變成 `.bin`。
+- [ ] 日文版 SRP 匯出時選 `CP932`；簡體中文版選 `GBK／CP936`。比較實際字串，不要只憑少量共同漢字判斷。
+- [ ] `Transform` 預設為 `NONE`。只有確認該 SRP 的文字 Data 還需要高低 4 位交換時才選 `NIBBLE_SWAP`。不要因選擇 GBK 而啟用交換。
+- [ ] TXT v3 標頭保留 `Encoding`、`Transform`、`HeaderCount`、`ParsedCount`；編輯文字後回封，確認 Type／Flags／非文字 Data／指令順序及 footer。
+- [ ] 不修改指令筆數時，確認原始 count 欄位保留；新增或刪除指令後，確認 count 更新為新筆數。
+- [ ] 回封 PAC 後放入遊戲副本測試；原始遊戲檔案先備份，不要直接覆蓋唯一副本。
 
-### GRD
+### VAR
 
-- [ ] RLE 24-bit、32-bit 有 Alpha、32-bit 無 Alpha 解碼。
-- [ ] Huffman + RLE（`0xA1`）、Huffman + LZ77（`0xA2`）解碼。
-- [ ] 修改 PNG 像素及透明度，回封後逐像素檢查。
-- [ ] 修改 PNG 尺寸，確認 metadata 座標及畫布尺寸。
-- [ ] 24bpp 來源 PNG 新增透明像素時，確認程式拒絕靜默丟棄 Alpha。
-- [ ] 批次中放入一個損壞 GRD／PNG，確認目的輸出目錄不會留下部分已提交的批次。
+- [ ] 日文版 VAR 選 CP932，簡體中文版 VAR 選 GBK／CP936，UTF-8 資料選 UTF-8。
+- [ ] 檢查 `[END]` 結尾及空字串記錄，修改後回封並在遊戲副本測試。
 
-### SRP／VAR
+### 安全及相容性
 
-- [ ] 原始日文遊戲 SRP 直接匯出，檢查 TXT `Encoding` 及 `Transform`，確認日文假名／漢字可讀。
-- [ ] 從 PAC 解包的日文 SRP 匯出，與直接 SRP 比較其 `Transform` 判斷可能不同。
-- [ ] 同一檔案 TXT → SRP 往返後逐指令比較 Data、Type、Flags、footer。
-- [ ] 確認 Type 2／3、Type 80 及未知 Type 以 hex 保留。
-- [ ] 日文 CP932 VAR、UTF-8 VAR 分別匯出、修改及回封。
-- [ ] 以 `RAW` 標頭匯出時，確認沒有把未知 bytes 誤顯示成文字。
-- [ ] 檢查 `\xHH`、`\n`、`\r`、`\t`、`\0`、`\\` 及 `\g{}` 跳脫。
-- [ ] 舊 croCKer TXT 先用副本測試回編，不要直接覆蓋遊戲原檔。
-- [ ] 輸出資料夾存在相同檔名時，確認停止而不是覆蓋翻譯稿。
+- [ ] 無法確認文字編碼時選 RAW，確認所有資料以 `\xHH` 保留；不要把 RAW 當成一般文字翻譯。
+- [ ] 舊版 TXT v1／v2 及無標頭 croCKer TXT 使用副本測試相容性。
+- [ ] 檢查輸出路徑已存在時程式會拒絕覆蓋。
+- [ ] 使用損壞或截斷的 SRP／PAC 測試時，程式應回報錯誤或保留為 `.bin`，不可直接當成有效腳本處理。
 
-### GUI／部署
+## 尚未完成的驗證範圍
 
-- [ ] Windows 10 x64 啟動；PAC、GRD、SRP、VAR 各分頁逐一執行。
-- [ ] 工作期間不可重複啟動其他工作；記錄區仍可操作。
-- [ ] 免安裝資料夾唯讀時，確認程式啟動及路徑設定不會寫入程式目錄。
-- [ ] Actions 成功後下載 Artifact；解壓一次即可看見 EXE、TSV 與文件，不應有內層 ZIP。
+- [ ] 直接以目前 Repository 的 `test/cn.pac`、`test/jp.pac` 測試實際索引、SRP 內容及完整回封。這兩個 PAC 是二進位樣本，需在可讀取原始檔案的本機或 GitHub Actions 環境執行。
+- [ ] 真正的遊戲載入測試。
+- [ ] 不同遊戲版本、私用造字字型及未公開 SRP Type 的語意驗證。

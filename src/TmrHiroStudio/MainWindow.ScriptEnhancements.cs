@@ -179,6 +179,7 @@ namespace TmrHiroStudio
 
             string v1Header = srp ? "TMRHIRO-SRP-TEXT/1" : "TMRHIRO-VAR-TEXT/1";
             string v2Header = srp ? "TMRHIRO-SRP-TEXT/2" : "TMRHIRO-VAR-TEXT/2";
+            string v3Header = srp ? "TMRHIRO-SRP-TEXT/3" : "TMRHIRO-VAR-TEXT/3";
             string suffix = srp ? ".srp.txt" : ".var.txt";
             List<string> results = new List<string>();
 
@@ -188,6 +189,7 @@ namespace TmrHiroStudio
                 if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) ||
                     HasTextHeaderEnhanced(file, v1Header) ||
                     HasTextHeaderEnhanced(file, v2Header) ||
+                    HasTextHeaderEnhanced(file, v3Header) ||
                     (srp ? IsLegacySrpTextEnhanced(file) : IsLegacyVarTextEnhanced(file)))
                 {
                     results.Add(file);
@@ -272,7 +274,7 @@ namespace TmrHiroStudio
             int offset = hasUtf8Bom ? 3 : 0;
             byte[] content = offset == 0 ? bytes : bytes.Skip(offset).ToArray();
 
-            // 本工具新格式（v1／v2）以 UTF-8 儲存；舊 croCKer TXT 沒有標頭，固定使用 CP932。
+            // 本工具新格式（v1／v2／v3）以 UTF-8 儲存；舊 croCKer TXT 沒有標頭，固定使用 CP932。
             // 不可只用「UTF-8 嚴格解碼是否成功」判斷，部分 CP932 位元組組合也可能碰巧是合法 UTF-8，
             // 進而把原本的日文 Shift-JIS 誤解成亂碼。
             if (hasUtf8Bom || HasKnownUtf8ScriptHeader(content))
@@ -295,7 +297,9 @@ namespace TmrHiroStudio
             return firstLine == "TMRHIRO-SRP-TEXT/1" ||
                    firstLine == "TMRHIRO-SRP-TEXT/2" ||
                    firstLine == "TMRHIRO-VAR-TEXT/1" ||
-                   firstLine == "TMRHIRO-VAR-TEXT/2";
+                   firstLine == "TMRHIRO-VAR-TEXT/2" ||
+                   firstLine == "TMRHIRO-SRP-TEXT/3" ||
+                   firstLine == "TMRHIRO-VAR-TEXT/3";
         }
 
         private static void ValidateRelativeOutputPath(string relativePath)

@@ -9,17 +9,24 @@ namespace TmrHiroStudio.Core
 {
     /// <summary>
     /// SRP／VAR 文字轉換器。
-    /// SRP Data 的 nibble swap 可能因來源而不同：直接取得的 SRP 與經 PAC 解包後的 SRP
-    /// 可能處於不同轉換階段。因此新 TXT 會比較 CP932／UTF-8 及 nibble swap／不交換四種候選，
-    /// 將選定的 Encoding 與 Transform 寫入 TXT 標頭，回封時嚴格反向還原。
-    /// 不再把 Type 2／3 或未知 Type 的二進位 Data 當成文字。
+    /// 使用者可獨立指定 CP932、GBK／CP936、UTF-8 或 RAW；SRP Data 的 nibble swap
+    /// 是另一個獨立選項，兩項設定都會記錄於 TXT 標頭並在回封時嚴格反向還原。
+    /// AUTO 僅作輔助偵測，不能可靠區分 CP932 與 GBK 的共同漢字。
+    /// Type 2／3 及未知 Type 的二進位 Data 不會被當成文字。
     /// </summary>
     internal static class ScriptTextCodec
     {
         private const string SrpTextHeaderV1 = "TMRHIRO-SRP-TEXT/1";
         private const string SrpTextHeaderV2 = "TMRHIRO-SRP-TEXT/2";
+        private const string SrpTextHeaderV3 = "TMRHIRO-SRP-TEXT/3";
         private const string VarTextHeaderV1 = "TMRHIRO-VAR-TEXT/1";
         private const string VarTextHeaderV2 = "TMRHIRO-VAR-TEXT/2";
+        private const string VarTextHeaderV3 = "TMRHIRO-VAR-TEXT/3";
+
+        // 由 GUI 下拉選單設定。預設 CP932 + NONE，避免未確認前擅自進行第二次 nibble swap。
+        // AUTO 僅保留為使用者可選的輔助偵測模式。
+        public static string SelectedExportEncoding = "CP932";
+        public static string SelectedExportTransform = "NONE";
         private const double MinimumReadableScore = 0.70;
         private const double SwapSelectionMargin = 0.18;
         private const double EncodingSelectionMargin = 0.75;
@@ -27,6 +34,7 @@ namespace TmrHiroStudio.Core
         private enum TextEncodingKind
         {
             Cp932,
+            Gbk,
             Utf8,
             Raw
         }
@@ -55,18 +63,34 @@ namespace TmrHiroStudio.Core
         {
             public TextEncodingKind Encoding;
             public TransformKind Transform;
+            public uint HeaderCount;
+            public int OriginalInstructionCount;
+            public bool HasCountMetadata;
             public List<SrpInstruction> Instructions = new List<SrpInstruction>();
         }
 
         public static string DecompileSrp(byte[] srpBytes)
         {
-            List<SrpInstruction> instructions = ScriptCodec.ReadSrpInstructions(srpBytes);
-            Profile profile = DetectSrpProfile(instructions);
+            return DecompileSrp(srpBytes, SelectedExportEncoding, SelectedExportTransform);
+        }
 
+        public static string DecompileSrp(byte[] srpBytes, string encodingName, string transformName)
+        {
+            List<SrpInstruction> instructions = ScriptCodec.ReadSrpInstructions(srpBytes);
+            Profile profile = SelectProfile(
+                instructions.Where(item => IsTextInstructionType(item.Type) && item.Data.Length > 0)
+                    .Select(item => item.Data).ToList(),
+                encodingName,
+                transformName,
+                allowNibbleSwap: true);
+
+            uint originalHeaderCount = BinaryUtil.ReadUInt32(srpBytes, 0);
             StringBuilder text = new StringBuilder();
-            text.Append(SrpTextHeaderV2).Append('\n');
+            text.Append(SrpTextHeaderV3).Append('\n');
             text.Append("Encoding: ").Append(EncodingName(profile.Encoding)).Append('\n');
             text.Append("Transform: ").Append(TransformName(profile.Transform)).Append('\n');
+            text.Append("HeaderCount: ").Append(originalHeaderCount.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            text.Append("ParsedCount: ").Append(instructions.Count.ToString(CultureInfo.InvariantCulture)).Append('\n');
             text.Append('\n');
 
             foreach (SrpInstruction instruction in instructions)
@@ -99,7 +123,13 @@ namespace TmrHiroStudio.Core
             using (MemoryStream stream = new MemoryStream())
             using (BinaryWriter writer = new BinaryWriter(stream))
             {
-                writer.Write((uint)instructions.Count);
+                // 原始 count 欄位有已知樣本與實際指令數不一致的情況。
+                // 只要指令筆數未變，就保留來源 count；若使用者新增／刪除指令，才更新為實際筆數。
+                uint outputCount = parsed.HasCountMetadata &&
+                    instructions.Count == parsed.OriginalInstructionCount
+                    ? parsed.HeaderCount
+                    : (uint)instructions.Count;
+                writer.Write(outputCount);
                 foreach (SrpInstruction instruction in instructions)
                 {
                     if (instruction.Data.Length > 32763)
@@ -121,11 +151,17 @@ namespace TmrHiroStudio.Core
 
         public static string DecompileVar(byte[] data)
         {
+            return DecompileVar(data, SelectedExportEncoding);
+        }
+
+        public static string DecompileVar(byte[] data, string encodingName)
+        {
             List<byte[]> values = ReadVarValues(data);
-            Profile profile = DetectVarProfile(values);
+            List<byte[]> samples = values.Where(value => value.Length > 0 && !IsEndMarker(value)).ToList();
+            Profile profile = SelectProfile(samples, encodingName, "NONE", allowNibbleSwap: false);
 
             StringBuilder text = new StringBuilder();
-            text.Append(VarTextHeaderV2).Append('\n');
+            text.Append(VarTextHeaderV3).Append('\n');
             text.Append("Encoding: ").Append(EncodingName(profile.Encoding)).Append('\n');
 
             // 不插入分隔空行，否則會把合法的第一筆空字串和格式分隔符混淆。
@@ -143,7 +179,9 @@ namespace TmrHiroStudio.Core
             TextEncodingKind encoding = TextEncodingKind.Cp932;
             int start = 0;
 
-            if (lines.Length > 0 && string.Equals(lines[0].Trim(), VarTextHeaderV2, StringComparison.Ordinal))
+            if (lines.Length > 0 &&
+                (string.Equals(lines[0].Trim(), VarTextHeaderV3, StringComparison.Ordinal) ||
+                 string.Equals(lines[0].Trim(), VarTextHeaderV2, StringComparison.Ordinal)))
             {
                 escapedMode = true;
                 start = 1;
@@ -215,8 +253,12 @@ namespace TmrHiroStudio.Core
             bool legacyTextTypes = true;
             TextEncodingKind encoding = TextEncodingKind.Cp932;
             TransformKind transform = TransformKind.NibbleSwap;
+            uint parsedHeaderCount = 0;
+            int originalInstructionCount = 0;
+            bool hasCountMetadata = false;
 
-            if (lines.Length > 0 && string.Equals(lines[0].Trim(), SrpTextHeaderV2, StringComparison.Ordinal))
+            bool version3 = lines.Length > 0 && string.Equals(lines[0].Trim(), SrpTextHeaderV3, StringComparison.Ordinal);
+            if (version3 || (lines.Length > 0 && string.Equals(lines[0].Trim(), SrpTextHeaderV2, StringComparison.Ordinal)))
             {
                 escapedMode = true;
                 legacyTextTypes = false;
@@ -230,6 +272,26 @@ namespace TmrHiroStudio.Core
                     throw new InvalidDataException("SRP TXT v2 缺少 Transform 標頭。");
                 transform = ParseTransform(lines[index].Substring(11));
                 index++;
+                if (version3)
+                {
+                    if (index >= lines.Length || !lines[index].StartsWith("HeaderCount: ", StringComparison.Ordinal))
+                        throw new InvalidDataException("SRP TXT v3 缺少 HeaderCount 標頭。");
+                    uint headerCount;
+                    if (!uint.TryParse(lines[index].Substring(13).Trim(), NumberStyles.Integer,
+                            CultureInfo.InvariantCulture, out headerCount))
+                        throw new InvalidDataException("SRP TXT v3 HeaderCount 不是有效的 UInt32。");
+                    parsedHeaderCount = headerCount;
+                    index++;
+                    if (index >= lines.Length || !lines[index].StartsWith("ParsedCount: ", StringComparison.Ordinal))
+                        throw new InvalidDataException("SRP TXT v3 缺少 ParsedCount 標頭。");
+                    int parsedCount;
+                    if (!int.TryParse(lines[index].Substring(13).Trim(), NumberStyles.Integer,
+                            CultureInfo.InvariantCulture, out parsedCount) || parsedCount < 0)
+                        throw new InvalidDataException("SRP TXT v3 ParsedCount 不是有效的非負整數。");
+                    originalInstructionCount = parsedCount;
+                    hasCountMetadata = true;
+                    index++;
+                }
             }
             else if (lines.Length > 0 && string.Equals(lines[0].Trim(), SrpTextHeaderV1, StringComparison.Ordinal))
             {
@@ -246,7 +308,10 @@ namespace TmrHiroStudio.Core
             ParsedSrpText parsed = new ParsedSrpText
             {
                 Encoding = encoding,
-                Transform = transform
+                Transform = transform,
+                HeaderCount = parsedHeaderCount,
+                OriginalInstructionCount = originalInstructionCount,
+                HasCountMetadata = hasCountMetadata
             };
 
             while (index < lines.Length)
@@ -304,7 +369,6 @@ namespace TmrHiroStudio.Core
                 .Where(item => IsTextInstructionType(item.Type) && item.Data.Length > 0)
                 .Select(item => item.Data)
                 .ToList();
-
             return DetectProfile(samples, allowNibbleSwap: true);
         }
 
@@ -316,56 +380,81 @@ namespace TmrHiroStudio.Core
             return DetectProfile(samples, allowNibbleSwap: false);
         }
 
+        private static Profile SelectProfile(
+            List<byte[]> samples,
+            string encodingName,
+            string transformName,
+            bool allowNibbleSwap)
+        {
+            string encodingChoice = (encodingName ?? "CP932").Trim().ToUpperInvariant();
+            string transformChoice = (transformName ?? "NONE").Trim().ToUpperInvariant();
+
+            if (encodingChoice == "AUTO" || encodingChoice == "AUTODETECT" || encodingChoice == "AUTO_DETECT")
+            {
+                Profile detected = DetectProfile(samples, allowNibbleSwap && IsAutoTransform(transformChoice));
+                if (!IsAutoTransform(transformChoice))
+                {
+                    TransformKind fixedTransform = ParseTransform(transformChoice);
+                    detected = DetectBestEncoding(samples, fixedTransform);
+                    detected.Transform = fixedTransform;
+                }
+                return detected;
+            }
+
+            TextEncodingKind fixedEncoding = ParseEncoding(encodingChoice);
+            TransformKind transform = IsAutoTransform(transformChoice)
+                ? DetectBestTransform(samples, fixedEncoding, allowNibbleSwap)
+                : ParseTransform(transformChoice);
+            return new Profile { Encoding = fixedEncoding, Transform = transform, Score = 1.0 };
+        }
+
+        private static bool IsAutoTransform(string value)
+        {
+            return value == "AUTO" || value == "AUTODETECT" || value == "AUTO_DETECT";
+        }
+
         private static Profile DetectProfile(List<byte[]> samples, bool allowNibbleSwap)
         {
             if (samples.Count == 0)
-            {
-                return new Profile
-                {
-                    Encoding = TextEncodingKind.Cp932,
-                    Transform = TransformKind.None,
-                    Score = 0
-                };
-            }
+                return new Profile { Encoding = TextEncodingKind.Cp932, Transform = TransformKind.None, Score = 0 };
 
-            Profile cp932None = ScoreProfile(samples, TextEncodingKind.Cp932, TransformKind.None);
-            Profile utf8None = ScoreProfile(samples, TextEncodingKind.Utf8, TransformKind.None);
-            Profile bestNoSwap = cp932None.Score >= utf8None.Score ? cp932None : utf8None;
-            Profile best = bestNoSwap;
+            Profile none = DetectBestEncoding(samples, TransformKind.None);
+            if (!allowNibbleSwap) return none;
 
-            if (allowNibbleSwap)
-            {
-                Profile cp932Swap = ScoreProfile(samples, TextEncodingKind.Cp932, TransformKind.NibbleSwap);
-                Profile utf8Swap = ScoreProfile(samples, TextEncodingKind.Utf8, TransformKind.NibbleSwap);
-                Profile bestSwap = cp932Swap.Score >= utf8Swap.Score ? cp932Swap : utf8Swap;
-                if (bestSwap.Score > best.Score + SwapSelectionMargin)
-                    best = bestSwap;
-            }
+            Profile swapped = DetectBestEncoding(samples, TransformKind.NibbleSwap);
+            return swapped.Score > none.Score + SwapSelectionMargin ? swapped : none;
+        }
 
-            // CP932 是此引擎已知的傳統腳本編碼。若 UTF-8 優勢不明顯，選 CP932；
-            // 尤其純 ASCII 內容在兩種編碼下位元組相同，不應無證據地標成 UTF-8。
-            Profile cp932ForTransform = best.Transform == TransformKind.NibbleSwap
-                ? ScoreProfile(samples, TextEncodingKind.Cp932, TransformKind.NibbleSwap)
-                : cp932None;
-            if (best.Encoding == TextEncodingKind.Utf8 &&
-                cp932ForTransform.Score >= best.Score - EncodingSelectionMargin)
-            {
-                best = cp932ForTransform;
-            }
+        private static Profile DetectBestEncoding(List<byte[]> samples, TransformKind transform)
+        {
+            if (samples.Count == 0)
+                return new Profile { Encoding = TextEncodingKind.Cp932, Transform = transform, Score = 0 };
+
+            Profile best = ScoreProfile(samples, TextEncodingKind.Cp932, transform);
+            Profile gbk = ScoreProfile(samples, TextEncodingKind.Gbk, transform);
+            Profile utf8 = ScoreProfile(samples, TextEncodingKind.Utf8, transform);
+
+            // 日文 CP932 的假名特徵分數較高；GBK 與 CP932 無法由共同漢字可靠區分時，
+            // 保留 CP932 為 Auto 的相容性預設。簡體中文請明確選 GBK/CP936。
+            if (gbk.Score > best.Score + EncodingSelectionMargin) best = gbk;
+            if (utf8.Score > best.Score + EncodingSelectionMargin) best = utf8;
 
             if (best.Score < MinimumReadableScore)
-            {
-                // 無法有把握判定文字編碼時，不產生看似可讀但可能錯誤的文字。
-                // 改以原始 byte 表示；TXT 標頭會明確記錄 RAW。
-                return new Profile
-                {
-                    Encoding = TextEncodingKind.Raw,
-                    Transform = TransformKind.None,
-                    Score = best.Score
-                };
-            }
-
+                return new Profile { Encoding = TextEncodingKind.Raw, Transform = transform, Score = best.Score };
+            best.Transform = transform;
             return best;
+        }
+
+        private static TransformKind DetectBestTransform(
+            List<byte[]> samples, TextEncodingKind encoding, bool allowNibbleSwap)
+        {
+            if (!allowNibbleSwap || samples.Count == 0 || encoding == TextEncodingKind.Raw)
+                return TransformKind.None;
+            Profile none = ScoreProfile(samples, encoding, TransformKind.None);
+            Profile swapped = ScoreProfile(samples, encoding, TransformKind.NibbleSwap);
+            return swapped.Score > none.Score + SwapSelectionMargin
+                ? TransformKind.NibbleSwap
+                : TransformKind.None;
         }
 
         private static Profile ScoreProfile(
@@ -375,23 +464,84 @@ namespace TmrHiroStudio.Core
         {
             double total = 0;
             int units = 0;
-
             foreach (byte[] original in samples)
             {
                 byte[] candidate = ApplyTransform(original, transform);
-                ScoreResult result = encoding == TextEncodingKind.Cp932
-                    ? ScoreCp932(candidate)
-                    : ScoreUtf8(candidate);
+                ScoreResult result;
+                if (encoding == TextEncodingKind.Cp932) result = ScoreCp932(candidate);
+                else if (encoding == TextEncodingKind.Gbk) result = ScoreGbk(candidate);
+                else result = ScoreUtf8(candidate);
                 total += result.Total;
                 units += result.Units;
             }
-
             return new Profile
             {
                 Encoding = encoding,
                 Transform = transform,
                 Score = units == 0 ? 0 : total / units
             };
+        }
+
+        private static ScoreResult ScoreGbk(byte[] bytes)
+        {
+            ScoreResult result = new ScoreResult();
+            int position = 0;
+            while (position < bytes.Length)
+            {
+                byte current = bytes[position];
+                if (current < 0x80)
+                {
+                    result.Total += ScoreAsciiByte(current);
+                    result.Units++;
+                    position++;
+                    continue;
+                }
+
+                if (current == 0x80)
+                {
+                    try
+                    {
+                        string one = BinaryUtil.GbkStrict.GetString(bytes, position, 1);
+                        result.Total += one.Length == 0 ? -8.0 : ScoreCharacter(one[0]);
+                    }
+                    catch (DecoderFallbackException) { result.Total -= 8.0; }
+                    result.Units++;
+                    position++;
+                    continue;
+                }
+
+                if (current >= 0x81 && current <= 0xfe && position + 1 < bytes.Length &&
+                    IsGbkTrail(bytes[position + 1]))
+                {
+                    try
+                    {
+                        string pair = BinaryUtil.GbkStrict.GetString(bytes, position, 2);
+                        if (pair.Length == 0) result.Total -= 8.0;
+                        else foreach (char ch in pair) result.Total += ScoreCharacter(ch);
+                    }
+                    catch (DecoderFallbackException) { result.Total -= 8.0; }
+                    result.Units++;
+                    position += 2;
+                    continue;
+                }
+
+                result.Total -= 8.0;
+                result.Units++;
+                position++;
+            }
+            return result;
+        }
+
+        private static double ScoreAsciiByte(byte value)
+        {
+            if (value == 0x09 || value == 0x0a || value == 0x0d || value == 0x00) return 0.0;
+            if (value >= 0x20 && value <= 0x7e) return 1.25;
+            return -0.25;
+        }
+
+        private static bool IsGbkTrail(byte value)
+        {
+            return (value >= 0x40 && value <= 0x7e) || (value >= 0x80 && value <= 0xfe);
         }
 
         private static ScoreResult ScoreCp932(byte[] bytes)
@@ -413,14 +563,7 @@ namespace TmrHiroStudio.Core
 
                 if (current < 0x80)
                 {
-                    if (current == 0x09 || current == 0x0a || current == 0x0d || current == 0x00)
-                        result.Total += 0.0;
-                    else if (current >= 0x20 && current <= 0x7e)
-                        result.Total += 1.25;
-                    else
-                        // Type 0／1 Data 可能混有遊戲控制碼；這些控制碼會在 TXT 以 \uXXXX 保留，
-                        // 不應因少量控制碼就讓整份日文腳本被誤判成 RAW。
-                        result.Total -= 0.25;
+                    result.Total += ScoreAsciiByte(current);
                     result.Units++;
                     position++;
                     continue;
@@ -541,6 +684,9 @@ namespace TmrHiroStudio.Core
             if (encoding == TextEncodingKind.Raw)
                 return EscapeBytesAsHex(bytes);
 
+            if (encoding == TextEncodingKind.Gbk)
+                return EscapeGbkBytes(bytes);
+
             if (encoding == TextEncodingKind.Utf8)
             {
                 string decoded;
@@ -643,6 +789,62 @@ namespace TmrHiroStudio.Core
             return result.ToString();
         }
 
+        private static string EscapeGbkBytes(byte[] bytes)
+        {
+            StringBuilder result = new StringBuilder(bytes.Length * 2);
+            int position = 0;
+            while (position < bytes.Length)
+            {
+                byte current = bytes[position];
+                int count = 1;
+                if (current >= 0x81 && current <= 0xfe)
+                {
+                    if (position + 1 < bytes.Length && IsGbkTrail(bytes[position + 1]))
+                        count = 2;
+                    else
+                    {
+                        AppendHexByte(result, current);
+                        position++;
+                        continue;
+                    }
+                }
+
+                string decoded;
+                try { decoded = BinaryUtil.GbkStrict.GetString(bytes, position, count); }
+                catch (DecoderFallbackException)
+                {
+                    AppendHexByte(result, current);
+                    position++;
+                    continue;
+                }
+
+                byte[] encoded;
+                try { encoded = BinaryUtil.GbkStrict.GetBytes(decoded); }
+                catch (EncoderFallbackException)
+                {
+                    for (int i = 0; i < count; i++) AppendHexByte(result, bytes[position + i]);
+                    position += count;
+                    continue;
+                }
+
+                bool identical = encoded.Length == count;
+                for (int i = 0; identical && i < count; i++) identical = encoded[i] == bytes[position + i];
+                bool containsPrivateUse = decoded.Any(ch => ch >= '\ue000' && ch <= '\uf8ff');
+                if (!identical || containsPrivateUse)
+                {
+                    // CP936／Windows-936 的使用者造字區沒有通用字形表；未知 PUA 不輸出成看似可編輯的字。
+                    // 保留原 bytes，避免把遊戲字型專用碼位誤當一般 Unicode 字元。
+                    for (int i = 0; i < count; i++) AppendHexByte(result, bytes[position + i]);
+                }
+                else
+                {
+                    foreach (char ch in decoded) AppendEscapedCharacter(result, ch);
+                }
+                position += count;
+            }
+            return result.ToString();
+        }
+
         private static string EscapeBytesAsHex(byte[] bytes)
         {
             StringBuilder result = new StringBuilder(bytes.Length * 4);
@@ -728,6 +930,8 @@ namespace TmrHiroStudio.Core
                             i += 4;
                             break;
                         case 'g':
+                            if (encoding != TextEncodingKind.Cp932)
+                                throw new InvalidDataException("\\g EUDC 跳脫只適用於 CP932；GBK／UTF-8／RAW 不可使用 CP932 私用造字位元組。");
                             if (i + 1 >= text.Length || text[i + 1] != '{')
                                 throw new InvalidDataException("\\g EUDC 跳脫格式應為 \\g{F040} 或 \\g{F040|字形}。");
                             int close = text.IndexOf('}', i + 2);
@@ -765,6 +969,8 @@ namespace TmrHiroStudio.Core
             {
                 case TextEncodingKind.Cp932:
                     return BinaryUtil.ShiftJisStrict.GetBytes(text);
+                case TextEncodingKind.Gbk:
+                    return BinaryUtil.GbkStrict.GetBytes(text);
                 case TextEncodingKind.Utf8:
                     return BinaryUtil.Utf8Strict.GetBytes(text);
                 default:
@@ -875,6 +1081,7 @@ namespace TmrHiroStudio.Core
             switch (encoding)
             {
                 case TextEncodingKind.Cp932: return "CP932";
+                case TextEncodingKind.Gbk: return "GBK";
                 case TextEncodingKind.Utf8: return "UTF8";
                 default: return "RAW";
             }
@@ -888,6 +1095,11 @@ namespace TmrHiroStudio.Core
                 case "SHIFT-JIS":
                 case "SHIFT_JIS":
                     return TextEncodingKind.Cp932;
+                case "GBK":
+                case "CP936":
+                case "WINDOWS-936":
+                case "GB2312":
+                    return TextEncodingKind.Gbk;
                 case "UTF8":
                 case "UTF-8":
                     return TextEncodingKind.Utf8;
