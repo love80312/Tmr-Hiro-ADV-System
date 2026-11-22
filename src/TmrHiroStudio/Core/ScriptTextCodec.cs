@@ -354,8 +354,8 @@ namespace TmrHiroStudio.Core
                         : EncodeText(dataText, TextEncodingKind.Cp932);
                 }
 
-                // TXT 內的 Data 是偵測時用來顯示／編輯的位元組；回編時反向套用同一轉換。
-                payload = ApplyTransform(payload, transform);
+                // 此處 payload 已是 TXT 中顯示／編輯的位元組，不可在解析時先交換。
+                // CompileSrp 寫出二進位時會且只會套用一次 Transform；在這裡重複套用會抵銷交換。
                 parsed.Instructions.Add(new SrpInstruction { Type = type, Flags = flags, Data = payload });
                 index++;
             }

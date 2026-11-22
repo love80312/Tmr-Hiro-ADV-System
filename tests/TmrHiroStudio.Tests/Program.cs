@@ -73,6 +73,8 @@ namespace TmrHiroStudio.Tests
             byte[] plain = BuildSrp(new[]
             {
                 new SrpInstruction { Type = 0, Flags = 0, Data = BinaryUtil.GbkStrict.GetBytes("「交换层测试」") },
+                // 二進位 Type 2 同樣屬於 SRP Data Transform 範圍，必須原樣反向還原。
+                new SrpInstruction { Type = 2, Flags = 3, Data = new byte[] { 0x12, 0x34, 0x56 } },
                 new SrpInstruction { Type = 16, Flags = 3, Data = Array.Empty<byte>() }
             });
             byte[] stored = SwapAllSrpData(plain);
@@ -81,6 +83,7 @@ namespace TmrHiroStudio.Tests
             Assert(txt.Contains("Encoding: GBK"), "選擇 nibble swap 不得改變 GBK 編碼。");
             Assert(txt.Contains("Transform: NIBBLE_SWAP"), "未將 nibble swap 獨立記錄。");
             Assert(txt.Contains("交换层测试"), "先交換再以 GBK 解碼失敗。");
+            Assert(txt.Contains("\\x12\\x34\\x56"), "Type 2 二進位 Data 未以轉換後的原始 bytes 顯示。");
             AssertBytesEqual(stored, ScriptTextCodec.CompileSrp(txt), "GBK + NIBBLE_SWAP 往返不一致");
         }
 
