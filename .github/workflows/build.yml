@@ -18,6 +18,7 @@ jobs:
   build:
     name: Build Windows 10 x64 portable app
     runs-on: windows-2022
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -33,42 +34,60 @@ jobs:
       - name: Build Release x64
         run: dotnet build src/TmrHiroStudio/TmrHiroStudio.csproj --configuration Release -p:Platform=x64 --no-restore
 
-      - name: Prepare portable ZIP
+      - name: Prepare portable package
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+
           $exe = Get-ChildItem -Path 'src/TmrHiroStudio/bin' -Filter 'TmrHiroStudio.exe' -Recurse -File |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
+
           if (-not $exe) {
             throw 'Build succeeded but TmrHiroStudio.exe was not found under the project output directory.'
           }
 
           $package = Join-Path $PWD 'artifacts/TmrHiroStudio-Win10-x64'
+
+          if (Test-Path $package) {
+            Remove-Item $package -Recurse -Force
+          }
+
           New-Item -ItemType Directory -Path $package -Force | Out-Null
+
+          # 主程式
           Copy-Item $exe.FullName (Join-Path $package 'TmrHiroStudio.exe') -Force
 
+          # .NET 執行設定
           $config = $exe.FullName + '.config'
           if (Test-Path $config) {
             Copy-Item $config (Join-Path $package 'TmrHiroStudio.exe.config') -Force
           }
 
+          # CP932 私用造字對照表
           $puaMap = Join-Path $exe.DirectoryName 'cp932-pua-map.tsv'
           if (Test-Path $puaMap) {
             Copy-Item $puaMap (Join-Path $package 'cp932-pua-map.tsv') -Force
           }
 
+          # 專案文件
           Copy-Item 'README.md' $package -Force
           Copy-Item 'LICENSE' $package -Force
           Copy-Item 'THIRD_PARTY_NOTICES.md' $package -Force
-          $zip = Join-Path $PWD 'artifacts/TmrHiroStudio-Win10-x64.zip'
-          Compress-Archive -Path (Join-Path $package '*') -DestinationPath $zip -Force
-          Write-Host "Portable package created: $zip"
+
+          # 檢查封裝內容
+          Write-Host 'Portable package contents:'
+          Get-ChildItem -Path $package -File |
+            Select-Object Name, Length |
+            Format-Table -AutoSize
+
+          Write-Host "Portable package created: $package"
 
       - name: Upload portable build
         uses: actions/upload-artifact@v4
         with:
           name: TmrHiroStudio-Win10-x64
-          path: artifacts/TmrHiroStudio-Win10-x64.zip
+          path: artifacts/TmrHiroStudio-Win10-x64/
           if-no-files-found: error
           retention-days: 30
+          
