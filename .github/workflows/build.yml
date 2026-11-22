@@ -1,0 +1,69 @@
+name: Build TmrHiroStudio
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows 10 x64 portable app
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore src/TmrHiroStudio/TmrHiroStudio.csproj
+
+      - name: Build Release x64
+        run: dotnet build src/TmrHiroStudio/TmrHiroStudio.csproj --configuration Release -p:Platform=x64 --no-restore
+
+      - name: Prepare portable ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem -Path 'src/TmrHiroStudio/bin' -Filter 'TmrHiroStudio.exe' -Recurse -File |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $exe) {
+            throw 'Build succeeded but TmrHiroStudio.exe was not found under the project output directory.'
+          }
+
+          $package = Join-Path $PWD 'artifacts/TmrHiroStudio-Win10-x64'
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
+          Copy-Item $exe.FullName (Join-Path $package 'TmrHiroStudio.exe') -Force
+
+          $config = $exe.FullName + '.config'
+          if (Test-Path $config) {
+            Copy-Item $config (Join-Path $package 'TmrHiroStudio.exe.config') -Force
+          }
+
+          Copy-Item 'README.md' $package -Force
+          Copy-Item 'LICENSE' $package -Force
+          Copy-Item 'THIRD_PARTY_NOTICES.md' $package -Force
+          $zip = Join-Path $PWD 'artifacts/TmrHiroStudio-Win10-x64.zip'
+          Compress-Archive -Path (Join-Path $package '*') -DestinationPath $zip -Force
+          Write-Host "Portable package created: $zip"
+
+      - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: TmrHiroStudio-Win10-x64
+          path: artifacts/TmrHiroStudio-Win10-x64.zip
+          if-no-files-found: error
+          retention-days: 30
