@@ -1,0 +1,13 @@
+# Windows 系統縮圖與資料夾設定檔
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS 系統隱藏檔
+.DS_Store
+
+# 常見暫存與備份檔
+*.tmp
+*.bak
+*.swp
+*~
