@@ -11,6 +11,10 @@ namespace TmrHiroStudio.Core
     /// SRP／VAR 文字轉換層。
     /// 以原 ScriptCodec 的 SRP 結構解析器為基礎，額外處理 CP932 EUDC 對照，
     /// 並將尚未確認語意的 SRP Type 80 視為不透明二進位資料。
+    ///
+    /// 注意：本轉換器接收的是已解除 PAC 腳本資料層轉換的 SRP。
+    /// PAC 層的 nibble swap 由 PacCodec.Extract／Pack 成對處理；
+    /// 此處不可再對 SRP Data 額外執行 nibble swap。
     /// </summary>
     internal static class ScriptTextCodec
     {
@@ -25,19 +29,17 @@ namespace TmrHiroStudio.Core
 
             foreach (SrpInstruction instruction in instructions)
             {
-                byte[] decoded = new byte[instruction.Data.Length];
-                for (int i = 0; i < decoded.Length; i++)
-                    decoded[i] = BinaryUtil.SwapNibbles(instruction.Data[i]);
-
                 text.Append("Type: ").Append(instruction.Type.ToString(CultureInfo.InvariantCulture)).Append('\n');
                 text.Append("Flags: ").Append(instruction.Flags.ToString(CultureInfo.InvariantCulture)).Append('\n');
 
-                // croCKer 的格式註解將 Type 0／1／2／3 分別描述為文字、選項、圖像、音效，
+                // PacCodec.Extract 已經解除 PAC 儲存層的 nibble swap。
+                // 此處直接解讀目前 SRP Data；再交換一次會把 CP932 位元組破壞成控制碼。
+                // croCKer 的參考分類將 Type 0／1／2／3 分別描述為文字、選項、圖像、音效，
                 // 但並未定義 Type 80 或其他型別。本工具只對已知 0–3 嘗試 CP932，
-                // 並逐段驗證重新編碼後 bytes 是否完全一致；Type 80／未知型別一律保留原始 bytes。
+                // Type 80／未知型別一律保留原始 bytes。
                 string dataText = IsTextInstructionType(instruction.Type)
-                    ? EscapeBytes(decoded)
-                    : EscapeBytesAsHex(decoded);
+                    ? EscapeBytes(instruction.Data)
+                    : EscapeBytesAsHex(instruction.Data);
                 text.Append("Data: ").Append(dataText).Append("\n\n");
             }
             return text.ToString();
@@ -64,10 +66,10 @@ namespace TmrHiroStudio.Core
                     writer.Write((ushort)(4 + instruction.Data.Length));
                     writer.Write(instruction.Type);
                     writer.Write(instruction.Flags);
-                    byte[] encoded = new byte[instruction.Data.Length];
-                    for (int i = 0; i < encoded.Length; i++)
-                        encoded[i] = BinaryUtil.SwapNibbles(instruction.Data[i]);
-                    writer.Write(encoded);
+
+                    // Data 已由 TXT 編碼回原始 CP932／位元組序列。
+                    // 不在這裡交換 nibble；PacCodec.Pack 會負責 PAC 層的成對轉換。
+                    writer.Write(instruction.Data);
                 }
 
                 byte[] result = stream.ToArray();
@@ -158,7 +160,7 @@ namespace TmrHiroStudio.Core
                 byte[] payload;
                 if (!IsTextInstructionType(type))
                 {
-                    // Type 80 及所有未確認型別保持不透明：只接受連續 \xHH，避免誤把二進位轉成文字。
+                    // Type 80 及所有未確認型別保持不透明：只接受連續的 \xHH，避免誤把二進位轉成文字。
                     if (!IsHexByteSequence(dataText))
                         throw new InvalidDataException("SRP Type " + type.ToString(CultureInfo.InvariantCulture) +
                             " 尚未確認資料語意；Data 只能使用連續的 \\xHH 位元組表示法。");
@@ -456,3 +458,4 @@ namespace TmrHiroStudio.Core
         }
     }
 }
+
