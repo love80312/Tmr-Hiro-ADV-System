@@ -5,8 +5,10 @@
 - 目標平台：Windows 10 x64
 - 執行階段：.NET Framework 4.8（Windows 10 22H2 已內建）
 - 發布形式：免安裝 ZIP，不使用安裝程式
+- 路徑選擇：記憶上次使用位置，優先目前欄位路徑，其次上次位置，最後程式目錄
+- 資料夾選擇：Windows 原生 Explorer 樣式資料夾選擇視窗
 - 編譯方式：GitHub Actions（純網頁操作即可編譯）
-- 專案版本：1.0.0
+- 專案版本：1.0.1
 
 > 引擎名稱採用公開格式研究中較常見的 **Tmr-Hiro ADV System**。`AGE_System` 尚未獲得足夠證據確認為正式名稱，因此不將兩者宣稱為已證實的別名。
 
@@ -41,6 +43,16 @@
 - SRP／VAR 文字格式使用明確的格式標頭及跳脫序列，保留反斜線、換行、Tab、NUL 等控制字元。
 - Shift-JIS 無法解碼的二進位內容會輸出為 `\xHH`，避免因替代字元造成資料遺失。
 - 也可讀取 `croCKer` 舊格式文字：SRP 的 `Type:`／`Flags:`／`Data:` 結構，以及以 `[END]` 結尾的 VAR TXT。
+
+## 1.0.1 修正內容
+
+- 修正背景工作直接讀取 WPF `TextBox`／`ComboBox` 所造成的跨執行緒例外。所有 UI 參數都在 UI 執行緒擷取，背景工作只接收一般資料。
+- 工作執行時只停用功能分頁，執行記錄仍可檢視及清除；狀態列顯示工作狀態及忙碌指示。
+- 檔案選擇器會優先使用目前欄位的有效路徑，其次使用相同類型上次選擇位置，最後回退到程式所在目錄。
+- 新增路徑記憶，設定存放於 `%LocalAppData%\TmrHiroStudio\settings.json`，不會寫入程式目錄。
+- 資料夾選擇改用 Windows Shell `IFileDialog`，不再使用傳統 WinForms `FolderBrowserDialog`。
+- 移除專案對 Windows Forms 的建置依賴，保留 WPF／.NET Framework 4.8／x64。
+- 輸出預設位置改為程式目錄下的 `Output`，不會在啟動時自動建立；實際執行工作時才建立。
 
 ## 使用方式
 
@@ -102,6 +114,7 @@ TmrHiroStudio/
 │  └─ workflows/
 │     └─ build.yml
 ├─ docs/
+│  ├─ FIXES_1.0.1.md
 │  ├─ FORMAT_NOTES.md
 │  ├─ REFERENCE_REVIEW.md
 │  └─ TEST_PLAN.md
@@ -111,6 +124,8 @@ TmrHiroStudio/
 │     ├─ App.xaml.cs
 │     ├─ MainWindow.xaml
 │     ├─ MainWindow.xaml.cs
+│     ├─ NativeFolderPicker.cs
+│     ├─ PathHistory.cs
 │     ├─ app.manifest
 │     ├─ App.config
 │     ├─ Core/
@@ -141,7 +156,7 @@ TmrHiroStudio/
 
 ## 參考研究
 
-六個倉庫的逐項程式碼檢視及技術取捨，請見 [docs/REFERENCE_REVIEW.md](docs/REFERENCE_REVIEW.md)；手動回歸測試項目請見 [docs/TEST_PLAN.md](docs/TEST_PLAN.md)；格式欄位筆記請見 [docs/FORMAT_NOTES.md](docs/FORMAT_NOTES.md)。
+六個倉庫的逐項程式碼檢視及技術取捨，請見 [docs/REFERENCE_REVIEW.md](docs/REFERENCE_REVIEW.md)；1.0.1 GUI 修正說明請見 [docs/FIXES_1.0.1.md](docs/FIXES_1.0.1.md)；手動回歸測試項目請見 [docs/TEST_PLAN.md](docs/TEST_PLAN.md)；格式欄位筆記請見 [docs/FORMAT_NOTES.md](docs/FORMAT_NOTES.md)。
 
 本專案為重新整理後的獨立實作，未將下列專案的 GPL 程式碼直接合併進來。這些連結用於格式結構、相容性行為及功能範圍的研究：
 

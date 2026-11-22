@@ -94,3 +94,12 @@
 ## 授權決策
 
 參考專案中同時存在 MIT、GPL-3.0 及檢視時未找到授權檔的倉庫。為避免把不同授權的程式碼不加區分地併入，本專案只將它們作為格式研究及行為參考，重新撰寫核心程式碼，並獨立採用 MIT License。未來若要直接複製或改寫任一參考倉庫的程式碼，必須重新檢視其授權並更新本專案授權安排。
+
+
+## 1.0.1 GUI 修正
+
+- `MainWindow.xaml.cs` 的工作啟動介面改為 `Func<Action>`。路徑欄位及 PAC 版本等 WPF 控制項只在 UI 執行緒擷取；`Task.Run` 僅執行已擷取的資料與核心方法。
+- `PathHistory.cs` 將上次檔案／資料夾位置保存至 LocalApplicationData，避免對免安裝程式所在目錄寫入設定。
+- `NativeFolderPicker.cs` 使用 Windows Shell `IFileDialog` 的 `FOS_PICKFOLDERS`，取代傳統 WinForms 資料夾瀏覽視窗。
+- 工作期間改為停用功能分頁，而非停用整個 Window；記錄區保持可用。
+- 移除 `UseWindowsForms`，不再因資料夾選擇器而引入 WinForms 相依。

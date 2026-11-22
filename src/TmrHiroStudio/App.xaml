@@ -16,6 +16,9 @@
             <Setter Property="Margin" Value="4" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Padding" Value="14,8" />
+        </Style>
         <Style TargetType="Label">
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Margin" Value="2" />

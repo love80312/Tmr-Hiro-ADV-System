@@ -21,7 +21,7 @@
             </DockPanel>
         </Border>
 
-        <TabControl Grid.Row="1" Background="White" BorderBrush="#D9E1E4">
+        <TabControl x:Name="MainTabs" Grid.Row="1" Background="White" BorderBrush="#D9E1E4">
             <TabItem Header="PAC 封包">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="14">
@@ -168,9 +168,13 @@
             </DockPanel>
         </GroupBox>
 
-        <DockPanel Grid.Row="3" LastChildFill="False">
+        <DockPanel Grid.Row="3" LastChildFill="False" VerticalAlignment="Center">
             <TextBlock Text="不會修改原始輸入檔；建議先備份遊戲資源。" Foreground="#65777D" VerticalAlignment="Center" />
-            <TextBlock DockPanel.Dock="Right" Text="TmrHiroStudio 1.0.0" Foreground="#65777D" VerticalAlignment="Center" />
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock x:Name="StatusText" Text="就緒" Foreground="#246B75" VerticalAlignment="Center" Margin="10,0,8,0" />
+                <ProgressBar x:Name="BusyProgress" Width="92" Height="10" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center" />
+                <TextBlock Text="TmrHiroStudio 1.0.1" Foreground="#65777D" VerticalAlignment="Center" Margin="12,0,0,0" />
+            </StackPanel>
         </DockPanel>
     </Grid>
 </Window>
