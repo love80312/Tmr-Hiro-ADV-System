@@ -8,3 +8,4 @@
 *.tmp
 artifacts/
 publish/
+Output/
