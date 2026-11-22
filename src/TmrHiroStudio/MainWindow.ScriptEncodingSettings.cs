@@ -7,18 +7,22 @@ namespace TmrHiroStudio
     {
         private void ScriptExportEncoding_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            ComboBox combo = sender as ComboBox;
-            ComboBoxItem item = combo == null ? null : combo.SelectedItem as ComboBoxItem;
-            if (item != null && item.Tag != null)
+            if (sender is ComboBox combo &&
+                combo.SelectedItem is ComboBoxItem item &&
+                item.Tag != null)
+            {
                 ScriptTextCodec.SelectedExportEncoding = item.Tag.ToString();
+            }
         }
 
         private void ScriptExportTransform_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            ComboBox combo = sender as ComboBox;
-            ComboBoxItem item = combo == null ? null : combo.SelectedItem as ComboBoxItem;
-            if (item != null && item.Tag != null)
+            if (sender is ComboBox combo &&
+                combo.SelectedItem is ComboBoxItem item &&
+                item.Tag != null)
+            {
                 ScriptTextCodec.SelectedExportTransform = item.Tag.ToString();
+            }
         }
     }
 }
