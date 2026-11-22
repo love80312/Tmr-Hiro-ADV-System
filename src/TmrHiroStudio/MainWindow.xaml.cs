@@ -105,7 +105,7 @@ namespace TmrHiroStudio
             {
                 string initialDirectory = PathHistory.GetInitialDirectory(target.Text, true);
                 string? selected = NativeFolderPicker.Show(this, description, initialDirectory);
-                if (string.IsNullOrWhiteSpace(selected)) return;
+                if (selected == null || string.IsNullOrWhiteSpace(selected)) return;
 
                 target.Text = selected;
                 PathHistory.RememberFolderSelection(selected);

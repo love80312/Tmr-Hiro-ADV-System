@@ -29,7 +29,7 @@ namespace TmrHiroStudio
             lock (SyncRoot)
             {
                 string? currentDirectory = FindExistingDirectory(currentPath);
-                if (!string.IsNullOrWhiteSpace(currentDirectory))
+                if (currentDirectory != null && !string.IsNullOrWhiteSpace(currentDirectory))
                     return currentDirectory;
 
                 string preferred = folderPicker ? _settings.LastFolderDirectory : _settings.LastFileDirectory;
@@ -71,7 +71,7 @@ namespace TmrHiroStudio
         public static void RememberFolderSelection(string folderPath)
         {
             string? directory = FindExistingDirectory(folderPath);
-            if (string.IsNullOrWhiteSpace(directory)) return;
+            if (directory == null || string.IsNullOrWhiteSpace(directory)) return;
 
             lock (SyncRoot)
             {
