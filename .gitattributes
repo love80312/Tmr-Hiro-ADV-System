@@ -1,0 +1,13 @@
+# 文字檔自動偵測並統一使用 LF 換行
+* text=auto eol=lf
+
+# 常見二進位檔案不進行文字合併與比對
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.zip binary
+*.7z binary
+*.exe binary
+*.dll binary
