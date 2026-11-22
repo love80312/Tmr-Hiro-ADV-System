@@ -1,56 +1,62 @@
-# 手動回歸測試清單
+# 自動與手動回歸測試
 
-目前專案不附帶商業遊戲資源或二進位測試樣本。第一次建置後，請用自己合法持有的遊戲檔案副本執行下列測試。
+## GitHub Actions 自動測試
 
-## PAC
+Workflow 會建置應用程式，接著執行 `tests/TmrHiroStudio.Tests`。任一測試失敗，Artifact 不會上傳。
 
-- [ ] V1 PAC 解包：檢查檔案數量、索引順序及 `.tmrhiro.pac.json` 的 `FormatVersion`。
-- [ ] V2 PAC 解包：確認 manifest 記錄 Version 2。
-- [ ] 使用含日文／全形字元的資源名稱測試：確認解包檔名可讀，回封後索引名稱仍可被遊戲辨識。
-- [ ] 原樣回封：比較解包前後的資源數、資源 bytes（SRP 以 PAC 層轉換還原後比較），並在遊戲中載入測試。
-- [ ] 修改一個 `.grd`、一個 `.srp`，刪除一個資源，再回封；確認刪除的資源不再存在於新 PAC。
-- [ ] 將輸出路徑指定到輸入資料夾內，確認新建 PAC 不會被當成下一次輸入資源。
-- [ ] 使用截斷標頭、錯誤 data_offset、負數 V2 offset 或超出檔案範圍的 PAC，確認程式拒絕解包且不留下半成品輸出目錄。
+目前自動測試涵蓋：
 
-## GRD
+- 固定 `test/00_01.srp`：323 筆指令、SRP TXT v2 匯出及完整往返。
+- 日文 CP932 SRP：未交換及 nibble-swapped 兩種資料狀態。
+- 混有控制碼的 CP932 日文 SRP：文字仍應可讀，控制碼以 `\uXXXX` 往返。
+- UTF-8 日文 SRP：編碼判斷及二進位往返。
+- 無法可靠辨識的 SRP：降級為 RAW `\xHH` 並 byte-exact 往返。
+- PAC SRP nibble swap：同一轉換執行兩次必須還原。
+- Type 2／3：不能被當成文字，且 bytes 必須完整往返。
+- CP932／UTF-8 日文 VAR：資料、長度及 `[END]`。
+- VAR 第一筆空字串：匯出／回封不得遺失空紀錄。
+- 一般漢字與 EUDC：一般漢字不得被反向錯轉成 EUDC；映射字元以明確 `\g{}` token 回寫，未映射字元保留 hex。
+- 原子寫入：預設拒絕覆蓋，並確認原檔 bytes 不變。
+- GRD：PNG → GRD → PNG 的 BGRA／Alpha 逐 byte 一致，且預設拒絕覆蓋。
 
-- [ ] 24-bit RLE GRD → PNG → GRD。
-- [ ] 32-bit、含 Alpha 的 RLE GRD → PNG → GRD。
-- [ ] 32-bit、無 Alpha 的 GRD → PNG → GRD。
-- [ ] Huffman + RLE（`0xA1`）及 Huffman + LZ77（`0xA2`）解碼。
-- [ ] 對輸出的 PNG 改一個像素，回封後確認畫面顏色與 Alpha 正確。
-- [ ] 修改 PNG 尺寸，確認 metadata 的圖像座標及畫布大小合法更新。
-- [ ] 使用你提供的 `sys_window_menu.grd` 作為回歸樣本：確認輸出尺寸為 1280 × 48，原始版本低位元組為 2，半透明 Alpha 外觀正常；輸出 GRD 的壓縮類型可變為 RLE，但版本低位元組仍應保留 2。
-- [ ] 對截斷標頭、通道長度不符、非法 RLE／Huffman／LZ77 stream，確認程式拒絕處理。
+這些測試不等於完整 GUI 測試，也不涵蓋所有不同遊戲版本或所有 GRD 壓縮樣本。
 
-## SRP／VAR
+## 手動實機測試
 
-- [ ] SRP 二進位 → TXT → SRP：二進位資料應可逐指令還原；count 欄位以重新編碼的實際指令數為準。
-- [ ] 舊 `croCKer` Shift-JIS SRP TXT 資料夾批次回編。
-- [ ] 新標頭 UTF-8 SRP TXT 批次回編。
-- [ ] VAR 二進位 → TXT → VAR：檢查每筆字串與最終 `[END]`。
-- [ ] 舊 `croCKer` VAR TXT（UTF-8、結尾 `[END]`）批次回編。
-- [ ] 測試資料中的反斜線、換行、Tab、NUL 及 `\xHH` 跳脫。
-- [ ] 移除 SRP 結尾指令、移除 VAR `[END]`、截斷長度欄位，確認程式拒絕回編。
+### PAC
 
-## 發布包
+- [ ] V1、V2 PAC 分別解包；比對資源數量、索引順序及 manifest。
+- [ ] 使用日文／全形檔名，原樣回封後由遊戲載入。
+- [ ] PAC 原樣回封：比較未修改資源 bytes；SRP 需考慮 PAC 儲存層轉換。
+- [ ] 修改一個 GRD、一個 SRP，刪除一個資源，再回封並實際載入。
+- [ ] 多 PAC 批次解包遇到壞檔時，確認輸出目錄沒有留下半套已提交結果。
+- [ ] 將輸出目錄指定為既有資料夾，確認既有檔案不會被覆蓋。
+- [ ] 測試截斷索引、錯誤 data_offset、負數 V2 offset、越界資源範圍及重複名稱。
 
-- [ ] GitHub Actions 成功完成 Release x64 build。
-- [ ] Artifact ZIP 內含 `TmrHiroStudio.exe`、`TmrHiroStudio.exe.config`（若有產生）、README、LICENSE 及 notices。
-- [ ] Windows 10 x64 上直接執行，不需額外安裝 .NET Desktop Runtime。
+### GRD
 
+- [ ] RLE 24-bit、32-bit 有 Alpha、32-bit 無 Alpha 解碼。
+- [ ] Huffman + RLE（`0xA1`）、Huffman + LZ77（`0xA2`）解碼。
+- [ ] 修改 PNG 像素及透明度，回封後逐像素檢查。
+- [ ] 修改 PNG 尺寸，確認 metadata 座標及畫布尺寸。
+- [ ] 24bpp 來源 PNG 新增透明像素時，確認程式拒絕靜默丟棄 Alpha。
+- [ ] 批次中放入一個損壞 GRD／PNG，確認目的輸出目錄不會留下部分已提交的批次。
 
-## GUI／路徑回歸測試（1.0.1）
+### SRP／VAR
 
-- [ ] 啟動程式後直接執行 PAC 解包，不再出現「呼叫執行緒無法存取此物件」例外。
-- [ ] 分別執行 GRD → PNG、PNG → GRD、SRP → TXT、VAR → TXT、TXT → SRP、TXT → VAR；確認操作期間沒有跨執行緒例外。
-- [ ] PAC 回封時切換 Version 1／Version 2／自動，確認選取版本在背景工作開始前已擷取。
-- [ ] 第一次選擇檔案／資料夾時，確認起始位置是程式目錄。
-- [ ] 選擇檔案／資料夾後關閉並重新啟動程式，再開啟選擇視窗，確認記憶上次位置。
-- [ ] 輸入欄位已有有效路徑時，確認選擇視窗優先使用欄位路徑。
-- [ ] 在目前欄位填入尚未建立的輸出路徑，確認選擇視窗會回退到最近存在的父資料夾。
-- [ ] 資料夾選擇視窗確認可使用位址列、左側導覽列、建立新資料夾及磁碟機瀏覽。
-- [ ] 工作執行期間確認功能分頁不能重複啟動工作，但執行記錄仍可捲動及清除。
-- [ ] 取消檔案／資料夾選擇，不應清空或改變原本輸入欄位內容。
-- [ ] 在無法寫入 `%LocalAppData%` 設定檔的受限環境測試，確認路徑記憶失敗不影響主要功能。
-- [ ] 在唯讀程式目錄測試：程式可啟動；若輸出資料夾無寫入權限，應顯示清楚錯誤，原始輸入不應被修改。
+- [ ] 原始日文遊戲 SRP 直接匯出，檢查 TXT `Encoding` 及 `Transform`，確認日文假名／漢字可讀。
+- [ ] 從 PAC 解包的日文 SRP 匯出，與直接 SRP 比較其 `Transform` 判斷可能不同。
+- [ ] 同一檔案 TXT → SRP 往返後逐指令比較 Data、Type、Flags、footer。
+- [ ] 確認 Type 2／3、Type 80 及未知 Type 以 hex 保留。
+- [ ] 日文 CP932 VAR、UTF-8 VAR 分別匯出、修改及回封。
+- [ ] 以 `RAW` 標頭匯出時，確認沒有把未知 bytes 誤顯示成文字。
+- [ ] 檢查 `\xHH`、`\n`、`\r`、`\t`、`\0`、`\\` 及 `\g{}` 跳脫。
+- [ ] 舊 croCKer TXT 先用副本測試回編，不要直接覆蓋遊戲原檔。
+- [ ] 輸出資料夾存在相同檔名時，確認停止而不是覆蓋翻譯稿。
+
+### GUI／部署
+
+- [ ] Windows 10 x64 啟動；PAC、GRD、SRP、VAR 各分頁逐一執行。
+- [ ] 工作期間不可重複啟動其他工作；記錄區仍可操作。
+- [ ] 免安裝資料夾唯讀時，確認程式啟動及路徑設定不會寫入程式目錄。
+- [ ] Actions 成功後下載 Artifact；解壓一次即可看見 EXE、TSV 與文件，不應有內層 ZIP。

@@ -1,174 +1,170 @@
 # TmrHiroStudio
 
-**Tmr-Hiro ADV System 資源整合工具**，以繁體中文 WPF 介面整合 PAC 封包、GRD 圖像及 SRP／VAR 腳本處理。
+**Tmr-Hiro ADV System 資源工具**，以繁體中文 WPF 介面處理 PAC 封包、GRD 圖像、SRP 腳本及 VAR 變數資料。
 
-- 目標平台：Windows 10 x64
-- 執行階段：.NET Framework 4.8（Windows 10 22H2 已內建）
-- 發布形式：免安裝 ZIP，不使用安裝程式
-- 路徑選擇：記憶上次使用位置，優先目前欄位路徑，其次上次位置，最後程式目錄
-- 資料夾選擇：Windows 原生 Explorer 樣式資料夾選擇視窗
-- 編譯方式：GitHub Actions（純網頁操作即可編譯）
-- 專案版本：1.0.1
+- 目標系統：Windows 10 x64
+- 執行環境：.NET Framework 4.8
+- 介面：WPF
+- 發布：GitHub Actions Artifact，免安裝 ZIP
+- 建置：GitHub Actions；可直接透過 GitHub 網頁操作
+- 版本：1.0.2
 
-> 引擎名稱採用公開格式研究中較常見的 **Tmr-Hiro ADV System**。`AGE_System` 尚未獲得足夠證據確認為正式名稱，因此不將兩者宣稱為已證實的別名。
+> 引擎名稱依公開格式研究採用 Tmr-Hiro ADV System；`AGE_System` 是否為正式內部名稱仍未獲充分證實。
 
 ## 功能
 
 ### PAC 封包
 
-- 解包及回封 PAC Version 1、Version 2。
-- Version 1 使用 32-bit 相對位移；Version 2 使用 64-bit 相對位移。
-- 使用 Shift-JIS（CP932）解析索引檔名，回封時以**位元組數**計算固定名稱欄位，不以 .NET 字元數代替。
-- 解包時依資源標頭辨識 `.grd`、`.srp`、`.ogg`、`.twav`、`.var`；無法確認的資源保留為 `.bin`。
-- PAC 解包目錄會產生 `.tmrhiro.pac.json`，記錄原始 PAC 版本、索引順序及原始檔名位元組。回封時可保留原始索引順序及名稱；刪除資源檔即不會將該資源放回封包。
-- PAC 的 SRP 資料層 nibble swap 會在解包及回封時成對處理。
-- 回封支援明確選擇 V1／V2，或依 manifest 自動沿用原版本。
-- 回封時會略過 `.grd.json`、`.srp.txt`、`.var.txt` 中繼／編輯文字檔，避免誤當成遊戲資源加入封包。
+- 支援 PAC Version 1／2 解包及回封。
+- 解包保留原始索引順序、檔名位元組及版本資訊於 `.tmrhiro.pac.json`。
+- 解包辨識 GRD、SRP、VAR、OGG、TWAV；無法確認的資料以 `.bin` 保留。
+- SRP 的 PAC 儲存層 nibble swap 由 PAC 解包與回封成對處理。
+- 回封可自動沿用 manifest 版本，或明確選擇 V1／V2。
+- PAC 不儲存子資料夾結構；回封只處理解包目錄第一層資源。
 
 ### GRD 圖像
 
-- GRD → PNG：支援 RLE（`0x01`）、Huffman + RLE（`0xA1`）、Huffman + LZ77（`0xA2`）通道解碼。
-- PNG → GRD：產生使用 RLE（`0x01`）的 GRD，並保留 metadata 中的 GRD 版本低位元組（1／2）、畫布尺寸、圖像座標及 24／32 bpp 設定。
-- 支援 24-bit、32-bit（含／不含 Alpha）。
-- 每張匯出的 PNG 旁會建立同名 `.grd.json` 中繼資料。回封時會自動讀取，以保留原始圖像位置及畫布參數。
-- 對於沒有 sidecar 的新 PNG，使用 PNG 尺寸建立新的 32-bit GRD。
-
-**注意：PNG → GRD 會重新編碼成 RLE，不會保留原本的 Huffman／LZ77 壓縮位元流。** 這是正常的格式重建；解碼後的圖像內容及必要 metadata 才是保留目標。
+- 支援 RLE、Huffman + RLE、Huffman + LZ77 解碼。
+- PNG → GRD 使用可驗證的 RLE 編碼；不宣稱保留原壓縮位元流。
+- 支援 24／32 bpp 與 Alpha 通道。
+- PNG sidecar `.grd.json` 保存原始畫布大小、圖像座標、版本及通道 metadata。
+- GRD 回封會重新解碼並逐像素比較 BGRA；驗證通過才提交輸出。
+- 批次作業先處理至暫存目錄，所有檔案成功後才提交；既有輸出不會被覆蓋。
 
 ### SRP／VAR 腳本
 
-- SRP ↔ UTF-8 TXT。
-- VAR ↔ UTF-8 TXT。
-- SRP 保留 Type、Flags、Data 與終止指令（Type 16／Flags 3）。解析以實際終止指令及檔案邊界為準，不完全信任可能錯誤的指令數欄位。
-- SRP／VAR 文字格式使用明確的格式標頭及跳脫序列，保留反斜線、換行、Tab、NUL 等控制字元。
-- Shift-JIS 無法解碼的二進位內容會輸出為 `\xHH`，避免因替代字元造成資料遺失。
-- 也可讀取 `croCKer` 舊格式文字：SRP 的 `Type:`／`Flags:`／`Data:` 結構，以及以 `[END]` 結尾的 VAR TXT。
+- SRP ↔ UTF-8 TXT；VAR ↔ UTF-8 TXT。
+- SRP 匯出會比較 CP932／UTF-8 及 Data nibble swap／不交換候選，避免將所有 SRP 一律當作相同轉換狀態。
+- SRP v2 TXT 標頭記錄實際採用的 `Encoding` 與 `Transform`。回封依標頭反向處理，不能刪除或改寫這些欄位。
+- VAR v2 TXT 標頭記錄 `Encoding`，支援 CP932、UTF-8、RAW。
+- Type 0／1 才按文字資料處理；Type 2／3、Type 80 及未知 Type 以 `\xHH` 保留位元組，避免把圖片／音效／未知二進位誤當文字。
+- CP932 EUDC 私用造字可由 `cp932-pua-map.tsv` 提供顯示提示；TXT 使用明確 `\g{F040|字形}` token，避免一般同字漢字被反向轉成 EUDC。
+- CP932／UTF-8 無法可靠判斷時使用 RAW 十六進位表示，仍可原樣回封，但不應把 RAW Data 當一般文字編輯。
+- 支援先前版本 TXT 標頭及 croCKer 舊格式的回編相容路徑；舊 croCKer 無標頭 TXT 固定按 CP932 讀取，新格式標頭／UTF-8 BOM 按 UTF-8 讀取，避免靠「UTF-8 是否剛好能解碼」誤判日文 CP932。
 
-## 1.0.1 修正內容
+## SRP 編碼及轉換說明
 
-- 修正背景工作直接讀取 WPF `TextBox`／`ComboBox` 所造成的跨執行緒例外。所有 UI 參數都在 UI 執行緒擷取，背景工作只接收一般資料。
-- 工作執行時只停用功能分頁，執行記錄仍可檢視及清除；狀態列顯示工作狀態及忙碌指示。
-- 檔案選擇器會優先使用目前欄位的有效路徑，其次使用相同類型上次選擇位置，最後回退到程式所在目錄。
-- 新增路徑記憶，設定存放於 `%LocalAppData%\TmrHiroStudio\settings.json`，不會寫入程式目錄。
-- 資料夾選擇改用 Windows Shell `IFileDialog`，不再使用傳統 WinForms `FolderBrowserDialog`。
-- 移除專案對 Windows Forms 的建置依賴，保留 WPF／.NET Framework 4.8／x64。
-- 輸出預設位置改為程式目錄下的 `Output`，不會在啟動時自動建立；實際執行工作時才建立。
+SRP 可能經過不同來源流程：直接取得的 SRP 與從 PAC 解包後的 SRP，其 Data 可能處於不同 nibble swap 階段。舊版程式固定交換或固定不交換，會使其中一種來源解碼錯誤。
+
+1.0.2 匯出時只用 Type 0／1 的資料作候選評估，嘗試 CP932／UTF-8，並比較 nibble swap／不交換。結果寫入 TXT，例如：
+
+```text
+TMRHIRO-SRP-TEXT/2
+Encoding: CP932
+Transform: NONE
+
+Type: 0
+Flags: 0
+Data: 日本語の台詞
+```
+
+另一種來源可能記錄 `Transform: NIBBLE_SWAP`。請保留 TXT 標頭，回封時程式會使用該欄位還原位元組。此自動判斷是依文字特徵選出最合理候選，不是對所有遊戲變體的數學保證；RAW 是無法可靠判讀時的資料保護結果。
+
+## 私用造字對照表
+
+`src/TmrHiroStudio/cp932-pua-map.tsv` 是 UTF-8 TSV，欄位為：
+
+```text
+CP932 位元組<TAB>PUA 碼位<TAB>字形提示
+```
+
+例如格式示意（不是實際遊戲字元對照）：
+
+```text
+F040<TAB>E000<TAB>漢
+```
+
+若有可信映射，TXT 中會輸出 `\g{F040|漢}`。回封只看明確 token 的 CP932 位元組，不會把一般文字「漢」轉成 `F040`。目前附帶表只有註解範本，沒有猜測性的實際映射；要顯示遊戲專用漢字，仍需字型、EUDC 檔或已驗證的碼表。
+
+## 輸出安全
+
+- SRP／VAR 批次匯出及回封會先處理所有輸入，再以暫存資料夾提交。
+- PAC／GRD 批次解包、解碼及回封也先完成工作目錄，再提交。
+- 預設拒絕覆蓋既有 TXT、SRP、VAR、PNG、GRD 及解包目錄，避免覆蓋翻譯稿或原始資料。
+- 若批次提交期間發生錯誤，程式會嘗試回滾；若回滾也失敗，會保留暫存目錄並在錯誤訊息中顯示路徑。
+- PAC 單檔回封仍使用 Save File Dialog 的覆蓋提示，並以同目錄暫存檔完成替換。
+- 所有格式解析皆檢查長度、檔案邊界及結尾標記；不要將未驗證的輸出直接覆蓋遊戲原檔。
 
 ## 使用方式
 
-### PAC 解包／回封
+### PAC
 
-1. 開啟 **PAC 封包** 分頁。
-2. 選擇一個 `.pac` 檔案，或選擇包含多個 `.pac` 的資料夾。
-3. 設定輸出位置並執行解包。每個 PAC 會建立自己的子資料夾。
-4. 修改解包資料夾內的資源檔。不要刪除 `.tmrhiro.pac.json`，除非你打算以新封包方式建立索引。
-5. 選擇該解包資料夾進行回封。選「自動」會沿用 manifest 記錄的 PAC 版本。
+1. 在「PAC 封包」分頁選擇 PAC 檔案或資料夾。
+2. 指定輸出資料夾並執行解包。
+3. 修改各 PAC 子資料夾中的資源；保留 `.tmrhiro.pac.json`。
+4. 選擇子資料夾進行回封。自動模式會優先沿用 manifest 記錄的版本。
 
-PAC 本身不儲存子資料夾結構，回封時只會處理解包資料夾第一層的資源檔；子資料夾會略過並在記錄中提示。
+### GRD
 
-### GRD 圖像編輯
+1. 執行 GRD → PNG；每張 PNG 會附帶 `.grd.json`。
+2. 使用支援 Alpha 的編輯器修改 PNG，保留 sidecar。
+3. 執行 PNG → GRD，輸出新 GRD。
+4. 程式會拒絕覆蓋既有輸出，請使用空白輸出資料夾或另選檔名。
 
-1. 在 **GRD 圖像** 分頁，選擇 GRD 檔案或資料夾，執行 GRD → PNG。
-2. 使用支援 Alpha 的繪圖軟體編輯 PNG。不要刪除對應的 `.grd.json`。
-3. 選擇編輯後的 PNG 檔案或資料夾，執行 PNG → GRD。
-4. 將輸出的 `.grd` 放回 PAC 解包資料夾，再回封 PAC。
+### SRP／VAR
 
-單獨編輯既有 GRD 時，請將 PNG 與 `.grd.json` 放在同一資料夾，確保程式讀得到 metadata。
+1. 選擇 `.srp`／`.var` 或資料夾，使用個別匯出功能；也可選擇「SRP + VAR → TXT」。
+2. 使用 UTF-8 編輯器修改 TXT。
+3. SRP v2 請保留 `TMRHIRO-SRP-TEXT/2`、`Encoding:` 及 `Transform:` 標頭；VAR v2 請保留 `TMRHIRO-VAR-TEXT/2` 及 `Encoding:`。
+4. 使用 TXT → SRP／VAR 回封，再將資源放回 PAC 解包資料夾。
 
-### SRP／VAR 文字編輯
+若 TXT 標頭顯示 `Encoding: RAW`，代表程式無法可靠判斷文字編碼；內容以 `\xHH` 保留，請勿直接把十六進位序列改成猜測的漢字。
 
-1. 選擇 `.srp`／`.var` 資源或資料夾，分別執行 SRP → TXT 或 VAR → TXT。
-2. 使用 UTF-8 編輯器修改輸出的 TXT，保留檔案第一行格式標頭及 `Type:`／`Flags:`／`Data:` 結構；VAR 最後一筆必須是 `[END]`。
-3. 選擇 TXT 檔案或資料夾，分別執行 TXT → SRP 或 TXT → VAR。
-4. 將編譯出的二進位資源放回 PAC 解包資料夾，再回封 PAC。
+## GitHub Actions 建置
 
-新格式文字檔的範例標頭：
+本次完整覆蓋／新增檔案清單及網頁上傳方式請見 `docs/UPLOAD_INSTRUCTIONS_1.0.2.md`。
 
-```text
-TMRHIRO-SRP-TEXT/1
-```
+1. 將本專案檔案上傳至 Repository 根目錄，保留 `.github/workflows/build.yml` 路徑。
+2. 開啟 Actions，執行 **Build TmrHiroStudio**。
+3. Workflow 會 restore、build Release x64、執行自動回歸測試，全部成功後才準備 Artifact。
+4. 下載 `TmrHiroStudio-Win10-x64`，解壓縮一次即可看到 `TmrHiroStudio.exe`、設定檔（若有）、`cp932-pua-map.tsv` 及文件。
 
-```text
-TMRHIRO-VAR-TEXT/1
-```
-
-新格式使用 `\n`、`\r`、`\t`、`\0`、`\\`、`\xHH` 表示特殊字元或原始位元組。不要移除格式標頭，也不要將 `\xHH` 當成一般文字改寫。
-
-## 建置（GitHub 網頁操作）
-
-1. 在 GitHub 建立新的空白 repository，建議名稱 `TmrHiroStudio`。
-2. 將本專案 ZIP 解壓縮，將**最外層資料夾內的全部檔案及資料夾**上傳到 repository 根目錄。
-3. 確認 `.github/workflows/build.yml` 位於 repository 的 `.github/workflows/` 下。
-4. 開啟 repository 的 **Actions** 頁面，選擇 **Build TmrHiroStudio**。
-5. 第一次上傳可由 `workflow_dispatch` 手動啟動；之後更新 `main` 分支也會自動編譯。
-6. 成功後進入該次 workflow run 頁面，在 **Artifacts** 下載 `TmrHiroStudio-Win10-x64`。
-7. 解壓縮 ZIP，直接執行 `TmrHiroStudio.exe`。
-
-此專案以 .NET Framework 4.8 為目標，不使用 .NET Desktop Runtime 自包含部署。Windows 10 22H2 已內建 .NET Framework 4.8，因此發佈檔不需額外安裝 .NET Runtime。若目標電腦的 .NET Framework 4.8 系統元件被移除或損壞，仍須先修復 Windows 元件。
+Artifact 不會再包含一個手動產生的內層 ZIP。
 
 ## 專案結構
 
 ```text
-TmrHiroStudio/
-├─ .github/
-│  └─ workflows/
-│     └─ build.yml
+Tmr-Hiro-ADV-System/
+├─ .github/workflows/build.yml
 ├─ docs/
-│  ├─ FIXES_1.0.1.md
+│  ├─ FIXES_1.0.2.md
 │  ├─ FORMAT_NOTES.md
-│  ├─ REFERENCE_REVIEW.md
-│  └─ TEST_PLAN.md
-├─ src/
-│  └─ TmrHiroStudio/
-│     ├─ App.xaml
-│     ├─ App.xaml.cs
-│     ├─ MainWindow.xaml
-│     ├─ MainWindow.xaml.cs
-│     ├─ NativeFolderPicker.cs
-│     ├─ PathHistory.cs
-│     ├─ app.manifest
-│     ├─ App.config
-│     ├─ Core/
-│     │  ├─ BinaryUtil.cs
-│     │  ├─ GrdCodec.cs
-│     │  ├─ JsonUtil.cs
-│     │  ├─ PacCodec.cs
-│     │  └─ ScriptCodec.cs
-│     ├─ Models/
-│     │  └─ Metadata.cs
-│     └─ TmrHiroStudio.csproj
-├─ .gitignore
+│  ├─ TEST_PLAN.md
+│  └─ UPLOAD_INSTRUCTIONS_1.0.2.md
+├─ src/TmrHiroStudio/
+│  ├─ Core/
+│  │  ├─ BinaryUtil.cs
+│  │  ├─ GrdCodec.cs
+│  │  ├─ JsonUtil.cs
+│  │  ├─ PacCodec.cs
+│  │  ├─ PuaCharacterMap.cs
+│  │  ├─ ScriptCodec.cs
+│  │  └─ ScriptTextCodec.cs
+│  ├─ MainWindow.xaml
+│  ├─ MainWindow.xaml.cs
+│  ├─ MainWindow.BatchEnhancements.cs
+│  ├─ MainWindow.ScriptEnhancements.cs
+│  ├─ InternalsVisibleTo.cs
+│  ├─ cp932-pua-map.tsv
+│  └─ TmrHiroStudio.csproj
+├─ tests/TmrHiroStudio.Tests/
+│  ├─ Program.cs
+│  └─ TmrHiroStudio.Tests.csproj
+├─ test/00_01.srp
 ├─ LICENSE
-├─ TmrHiroStudio.sln
 ├─ THIRD_PARTY_NOTICES.md
 └─ README.md
 ```
 
-## 已知限制及安全原則
+## 已知限制
 
-- 目前只針對上述 Tmr-Hiro PAC／GRD／SRP／VAR 結構；不保證所有使用相似副檔名的遊戲封包都相容。
-- `.twav` 目前僅辨識並原樣解包／回封，未實作 WAV 播放或轉檔；不臆測其未確認的音訊標頭欄位。
-- PAC 解包會拒絕不合法的索引範圍、重複輸出檔名及不合理資源大小；不會直接覆寫既有解包目錄。
-- GRD 解碼會檢查標頭、通道長度、影像尺寸及壓縮輸出邊界。
-- SRP／VAR 回編會檢查指令／字串長度、結尾標記及資料邊界。
-- 請先以遊戲資源副本測試，確認遊戲能正常讀取重建的 PAC／GRD／SRP／VAR 後，再替換正式檔案。
-- 此專案不包含任何遊戲資源、遊戲執行檔或商業素材。
+- SRP 編碼／轉換判斷採特徵評分；不同遊戲分支或非典型腳本可能需要新增已知樣本及格式規則。
+- Type 2／3 按參考分類保守視為二進位；Type 80 及未知 Type 不猜測語意。
+- EUDC 字形提示表刻意不填猜測資料。沒有實際字型／碼表時，部分簡體或日文遊戲自訂字仍會以 `\xHH` 或 `\g{}` 表示。
+- GRD 新輸出會重新編碼成 RLE，不保留 Huffman／LZ77 原始壓縮位元流；驗收以像素與 metadata 為準。
+- 自動測試涵蓋固定 SRP 樣本、合成日文 CP932／UTF-8、兩種 nibble 狀態、VAR、PUA 安全表示、原子寫入與 GRD 像素往返；尚不能取代所有商業遊戲實機測試。
+- 請先用合法持有的遊戲資源副本測試，確認遊戲能讀取重建檔案後再替換正式資源。
 
-## 參考研究
+## 授權與參考
 
-六個倉庫的逐項程式碼檢視及技術取捨，請見 [docs/REFERENCE_REVIEW.md](docs/REFERENCE_REVIEW.md)；1.0.1 GUI 修正說明請見 [docs/FIXES_1.0.1.md](docs/FIXES_1.0.1.md)；手動回歸測試項目請見 [docs/TEST_PLAN.md](docs/TEST_PLAN.md)；格式欄位筆記請見 [docs/FORMAT_NOTES.md](docs/FORMAT_NOTES.md)。
-
-本專案為重新整理後的獨立實作，未將下列專案的 GPL 程式碼直接合併進來。這些連結用於格式結構、相容性行為及功能範圍的研究：
-
-- [Chenx221/Tmr-Hiro_PAC_Repack](https://github.com/Chenx221/Tmr-Hiro_PAC_Repack)
-- [HOKORISAMA/Tmr-hiro-grd-tools](https://github.com/HOKORISAMA/Tmr-hiro-grd-tools)
-- [crskycode/TmrHiro_Tool](https://github.com/crskycode/TmrHiro_Tool)
-- [TheVNConnoisseur/croCKer](https://github.com/TheVNConnoisseur/croCKer)
-- [nanami5270/TmrHiro_Tool](https://github.com/nanami5270/TmrHiro_Tool)
-- [TheVNConnoisseur/PACkager](https://github.com/TheVNConnoisseur/PACkager)
-- [GARbro Tmr-Hiro GRD decoder](https://github.com/morkt/GARbro/blob/master/ArcFormats/Tmr-Hiro/ImageGRD.cs)
-- [GARbro Tmr-Hiro PAC reader](https://github.com/morkt/GARbro/blob/master/ArcFormats/Tmr-Hiro/ArcPAC.cs)
-
-## 授權
-
-本專案新撰寫的程式碼以 MIT License 發布。參考連結中的其他專案各自保留其原有授權；詳見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+本專案程式碼以 MIT License 發布。外部參考專案保留其各自授權；詳見 `THIRD_PARTY_NOTICES.md` 及 `docs/REFERENCE_REVIEW.md`。

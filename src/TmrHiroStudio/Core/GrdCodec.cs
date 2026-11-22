@@ -10,7 +10,8 @@ namespace TmrHiroStudio.Core
     internal static class GrdCodec
     {
         private const int HeaderSize = 0x20;
-        private const int MaximumPixels = 100000000;
+        // BGRA32 至少需要 160 MB，另有解壓通道暫存；限制避免損壞檔案要求數 GB 配置。
+        private const int MaximumPixels = 40000000;
 
         public static GrdMetadata ReadMetadata(byte[] data)
         {
@@ -20,7 +21,8 @@ namespace TmrHiroStudio.Core
             ushort format = BinaryUtil.ReadUInt16(data, 0);
             int version = format & 0xff;
             int packType = format >> 8;
-            if ((version != 1 && version != 2) || (packType != 1 && packType != 0xA1 && packType != 0xA2))
+            if ((version != 1 && version != 2) ||
+                (packType != 1 && packType != 0xA1 && packType != 0xA2))
                 throw new InvalidDataException("不支援的 GRD 格式標記：0x" + format.ToString("X4"));
 
             GrdMetadata meta = new GrdMetadata
@@ -43,6 +45,8 @@ namespace TmrHiroStudio.Core
                 throw new InvalidDataException("GRD 色彩深度不是 24 或 32 bpp。");
             if (meta.Bpp == 24 && meta.AlphaSize != 0)
                 throw new InvalidDataException("24-bit GRD 不應包含 Alpha 通道。");
+            if (meta.ScreenWidth == 0 || meta.ScreenHeight == 0)
+                throw new InvalidDataException("GRD 畫布尺寸不能為零。");
 
             int width = meta.Width;
             int height = meta.Height;
@@ -99,13 +103,15 @@ namespace TmrHiroStudio.Core
                 pngBytes = stream.ToArray();
             }
 
-            BinaryUtil.WriteAtomically(pngPath, pngBytes);
             string sidecar = Path.ChangeExtension(pngPath, ".grd.json");
-            JsonUtil.Write(sidecar, meta);
+            WritePngAndSidecarNoOverwrite(pngPath, pngBytes, sidecar, meta);
         }
 
         public static void CreateFromPng(string pngPath, string grdPath)
         {
+            if (File.Exists(grdPath))
+                throw new IOException("GRD 輸出檔已存在，為避免覆蓋而停止：" + grdPath);
+
             int width;
             int height;
             byte[] bgra = ReadPngAsBgra32(pngPath, out width, out height);
@@ -130,7 +136,7 @@ namespace TmrHiroStudio.Core
                     Right = (ushort)width,
                     Top = 0,
                     Bottom = (ushort)height,
-                    // 新建 GRD 預設保留 32bpp Alpha 通道。
+                    // 新建 GRD 預設建立 Alpha 通道；1 僅是尚未編碼前的存在旗標。
                     AlphaSize = 1
                 };
             }
@@ -157,7 +163,6 @@ namespace TmrHiroStudio.Core
             bool pngHasTransparency = HasNonOpaqueAlpha(bgra);
             bool sourceHasAlpha = meta.Bpp == 32 && meta.AlphaSize > 0;
 
-            // 24bpp 沒有 Alpha 通道，不能把使用者新增的透明度靜默丟棄。
             if (meta.Bpp == 24 && pngHasTransparency)
             {
                 throw new InvalidDataException(
@@ -165,16 +170,12 @@ namespace TmrHiroStudio.Core
                     "請先確認是否要改用 32bpp，再重新建立 GRD；本次未寫入輸出檔。");
             }
 
-            // 32bpp 原始檔即使沒有 Alpha 通道，只要編輯後 PNG 出現透明像素，
-            // 就自動建立 Alpha 通道，避免透明資訊被忽略。
             bool writeAlpha = meta.Bpp == 32 && (sourceHasAlpha || pngHasTransparency);
-
             byte[] alphaData = writeAlpha ? CompressChannel(bgra, width, height, 3) : Array.Empty<byte>();
             byte[] redData = CompressChannel(bgra, width, height, 2);
             byte[] greenData = CompressChannel(bgra, width, height, 1);
             byte[] blueData = CompressChannel(bgra, width, height, 0);
 
-            // 重建時使用已知可逆的 RLE；不追求原始壓縮位元組或 MD5 相同。
             meta.Format = (ushort)(0x0100 | meta.Version);
             meta.AlphaSize = (uint)alphaData.Length;
             meta.RSize = (uint)redData.Length;
@@ -182,17 +183,10 @@ namespace TmrHiroStudio.Core
             meta.BSize = (uint)blueData.Length;
 
             byte[] grdBytes = BuildGrdBytes(meta, alphaData, redData, greenData, blueData);
-
-            // 第一次驗證在記憶體中完成，錯誤時不碰正式輸出檔。
             VerifyRoundTrip(grdBytes, bgra, width, height);
+            WriteVerifiedAtomically(grdPath, grdBytes, bgra, width, height, overwrite: false);
 
-            // 暫存檔落盤後再次讀取、解碼、逐像素比較；通過後才原子替換正式檔。
-            WriteVerifiedAtomically(grdPath, grdBytes, bgra, width, height);
-
-            // 已有 sidecar 時，同步更新實際輸出的 RLE 標記及各通道長度。
-            // 新 PNG 沒有 sidecar 時維持既有行為，不額外建立中繼資料檔。
-            if (File.Exists(sidecar))
-                JsonUtil.Write(sidecar, meta);
+            // 不修改來源 PNG 的 .grd.json；該 sidecar 是輸入資產，回封成功不應反向改寫來源。
         }
 
         private static byte[] ReadPngAsBgra32(string pngPath, out int width, out int height)
@@ -233,9 +227,7 @@ namespace TmrHiroStudio.Core
         private static bool HasNonOpaqueAlpha(byte[] bgra)
         {
             for (int i = 3; i < bgra.Length; i += 4)
-            {
                 if (bgra[i] != 255) return true;
-            }
             return false;
         }
 
@@ -283,8 +275,6 @@ namespace TmrHiroStudio.Core
             if (decodedBgra.Length != expectedBgra.Length)
                 throw new InvalidDataException("GRD 回讀像素緩衝區長度不一致。");
 
-            // expectedBgra 是 WPF 正規化後的 BGRA32；GRD 無 Alpha 時解碼器會補 255，
-            // 因此可直接比較完整 BGRA 四通道，而不需要忽略 Alpha。
             for (int offset = 0; offset < expectedBgra.Length; offset += 4)
             {
                 for (int channel = 0; channel < 4; channel++)
@@ -305,12 +295,66 @@ namespace TmrHiroStudio.Core
             }
         }
 
+        private static void WritePngAndSidecarNoOverwrite(
+            string pngPath,
+            byte[] pngBytes,
+            string sidecarPath,
+            GrdMetadata metadata)
+        {
+            string fullPng = Path.GetFullPath(pngPath);
+            string fullSidecar = Path.GetFullPath(sidecarPath);
+            string? directory = Path.GetDirectoryName(fullPng);
+            if (string.IsNullOrEmpty(directory))
+                throw new InvalidOperationException("無法判斷 PNG 輸出資料夾。");
+            Directory.CreateDirectory(directory);
+
+            if (File.Exists(fullPng) || Directory.Exists(fullPng))
+                throw new IOException("PNG 輸出檔已存在，為避免覆蓋而停止：" + fullPng);
+            if (File.Exists(fullSidecar) || Directory.Exists(fullSidecar))
+                throw new IOException("GRD sidecar 已存在，為避免覆蓋而停止：" + fullSidecar);
+
+            string token = "." + Guid.NewGuid().ToString("N") + ".tmp";
+            string tempPng = fullPng + token;
+            string tempSidecar = fullSidecar + token;
+            bool pngCommitted = false;
+
+            try
+            {
+                File.WriteAllBytes(tempPng, pngBytes);
+                JsonUtil.Write(tempSidecar, metadata);
+
+                if (File.Exists(fullPng) || File.Exists(fullSidecar))
+                    throw new IOException("PNG 或 sidecar 在寫入期間已出現，輸出已停止。");
+
+                File.Move(tempPng, fullPng);
+                pngCommitted = true;
+                File.Move(tempSidecar, fullSidecar);
+            }
+            catch
+            {
+                if (pngCommitted)
+                {
+                    try { if (File.Exists(fullPng)) File.Delete(fullPng); }
+                    catch { }
+                }
+                throw;
+            }
+            finally
+            {
+                try { if (File.Exists(tempPng)) File.Delete(tempPng); }
+                catch { }
+                try { if (File.Exists(tempSidecar)) File.Delete(tempSidecar); }
+                catch { }
+            }
+        }
+
         private static void WriteVerifiedAtomically(
             string grdPath,
             byte[] grdBytes,
             byte[] expectedBgra,
             int width,
-            int height)
+            int height,
+            bool overwrite)
         {
             string fullPath = Path.GetFullPath(grdPath);
             string? directory = Path.GetDirectoryName(fullPath);
@@ -318,24 +362,25 @@ namespace TmrHiroStudio.Core
                 throw new InvalidOperationException("無法判斷 GRD 輸出資料夾。");
 
             Directory.CreateDirectory(directory);
+            if (!overwrite && File.Exists(fullPath))
+                throw new IOException("GRD 輸出檔已存在，為避免覆蓋而停止：" + fullPath);
+
             string tempPath = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
                 File.WriteAllBytes(tempPath, grdBytes);
-
-                // 從實際落盤的暫存檔重新讀取，驗證寫入內容及完整像素。
                 byte[] writtenBytes = File.ReadAllBytes(tempPath);
                 VerifyRoundTrip(writtenBytes, expectedBgra, width, height);
 
-                if (File.Exists(fullPath))
+                if (overwrite && File.Exists(fullPath))
                     File.Replace(tempPath, fullPath, null);
                 else
                     File.Move(tempPath, fullPath);
             }
             finally
             {
-                if (File.Exists(tempPath))
-                    File.Delete(tempPath);
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); }
+                catch { }
             }
         }
 
@@ -434,8 +479,6 @@ namespace TmrHiroStudio.Core
                 throw new InvalidDataException("GRD Huffman 樹資料不足。");
 
             int unpackedLength = BinaryUtil.ReadInt32(input, 0);
-            // 此欄位在已公開的 Tmr-Hiro 解碼器中未被用來裁切 bit stream；
-            // 以目前 GRD 通道的實際長度作為唯一邊界，避免不同遊戲對 packed_size 的定義差異。
             _ = BinaryUtil.ReadUInt32(input, 4);
             long maxRleLength = (long)expectedPixels * 2 + 16;
             if (unpackedLength <= 0 || unpackedLength > maxRleLength)
@@ -460,7 +503,6 @@ namespace TmrHiroStudio.Core
                 tree.RemoveAt(0);
                 int right = tree[0];
                 tree.RemoveAt(0);
-
                 if (nextNode >= nodes.Length)
                     throw new InvalidDataException("GRD Huffman 樹節點超出上限。");
 
@@ -483,7 +525,7 @@ namespace TmrHiroStudio.Core
                 {
                     int bit = ReadLsbBit(input, bitStart, bitLength, ref bytePos, ref bitPos);
                     node = bit != 0 ? nodes[node].Right : nodes[node].Left;
-                    if (node < 0 || node >= nodes.Length)
+                    if (node < 0 || node >= nodes.Length || nodes[node] == null)
                         throw new InvalidDataException("GRD Huffman 樹指標無效。");
                 }
                 output[dst] = (byte)node;
@@ -560,6 +602,9 @@ namespace TmrHiroStudio.Core
                     dst++;
                 }
             }
+
+            // 公開格式資料尚未證實末端 padding 的語意；達到宣告輸出長度後停止，
+            // 不擅自把可能合法的對齊位元組判成損壞資料。
             return output;
         }
 
@@ -622,7 +667,6 @@ namespace TmrHiroStudio.Core
                         while (position + nextRun < input.Length &&
                                input[position + nextRun] == input[position] && nextRun < 127)
                             nextRun++;
-
                         if (nextRun >= 2) break;
                         position++;
                     }

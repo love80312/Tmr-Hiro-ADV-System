@@ -47,7 +47,7 @@
                                 <TextBox x:Name="PacExtractOutput" Grid.Row="1" Grid.Column="1" />
                                 <Button Grid.Row="1" Grid.Column="2" Content="瀏覽" Click="PacExtractOutput_Click" />
                                 <TextBlock Grid.Row="2" Grid.Column="1" Margin="6,5" Foreground="#65777D" Text="資料夾模式會批次處理其中的 PAC；每個封包各自建立子資料夾，並產生版本／檔名 manifest。" TextWrapping="Wrap" />
-                                <Button Grid.Row="2" Grid.Column="2" Content="開始解包" Click="PacUnpack_Click" />
+                                <Button Grid.Row="2" Grid.Column="2" Content="開始解包" Click="PacUnpackEnhanced_Click" />
                             </Grid>
                         </GroupBox>
 
@@ -96,7 +96,7 @@
                         <TextBox x:Name="GrdExtractOutput" Grid.Row="1" Grid.Column="1" />
                         <Button Grid.Row="1" Grid.Column="2" Content="瀏覽" Click="GrdExtractOutput_Click" />
                     </Grid>
-                    <Button Content="批次解碼 GRD → PNG" Width="190" HorizontalAlignment="Left" Margin="4,8,4,22" Click="GrdExtract_Click" />
+                    <Button Content="批次解碼 GRD → PNG" Width="190" HorizontalAlignment="Left" Margin="4,8,4,22" Click="GrdExtractEnhanced_Click" />
                     <Separator Margin="0,4,0,16" />
                     <TextBlock Text="PNG → GRD" FontWeight="SemiBold" FontSize="15" Foreground="#1F4650" Margin="4,4,4,8" />
                     <Grid>
@@ -112,7 +112,7 @@
                         <TextBox x:Name="GrdBuildOutput" Grid.Row="1" Grid.Column="1" />
                         <Button Grid.Row="1" Grid.Column="2" Content="瀏覽" Click="GrdBuildOutput_Click" />
                     </Grid>
-                    <Button Content="批次建立 PNG → GRD" Width="190" HorizontalAlignment="Left" Margin="4,8,4,8" Click="GrdBuild_Click" />
+                    <Button Content="批次建立 PNG → GRD" Width="190" HorizontalAlignment="Left" Margin="4,8,4,8" Click="GrdBuildEnhanced_Click" />
                     <TextBlock Margin="6,10" Foreground="#65777D" Text="GRD 匯出會建立 .grd.json 中繼資料；回封優先保留原始畫布、位置與色彩深度。新圖像會使用 RLE 壓縮，並保留 GRD 的版本低位元組。" TextWrapping="Wrap" />
                 </StackPanel>
             </TabItem>
@@ -134,8 +134,9 @@
                         <Button Grid.Row="1" Grid.Column="2" Content="瀏覽" Click="ScriptExportOutput_Click" />
                     </Grid>
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,18">
-                        <Button Content="SRP → TXT" Click="SrpExport_Click" />
-                        <Button Content="VAR → TXT" Click="VarExport_Click" />
+                        <Button Content="SRP → TXT" Click="SrpExportMapped_Click" />
+                        <Button Content="VAR → TXT" Click="VarExportMapped_Click" />
+                        <Button Content="SRP + VAR → TXT" Click="BothExport_Click" ToolTip="遞迴匯出所有 SRP 與 VAR，並保留子資料夾結構。" />
                     </StackPanel>
                     <Separator Margin="0,4,0,14" />
                     <TextBlock Text="UTF-8 文字 → 二進位資源" FontWeight="SemiBold" FontSize="15" Foreground="#1F4650" Margin="4,4,4,8" />
@@ -153,10 +154,10 @@
                         <Button Grid.Row="1" Grid.Column="2" Content="瀏覽" Click="ScriptBuildOutput_Click" />
                     </Grid>
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,8">
-                        <Button Content="TXT → SRP" Click="SrpBuild_Click" />
-                        <Button Content="TXT → VAR" Click="VarBuild_Click" />
+                        <Button Content="TXT → SRP" Click="SrpBuildMapped_Click" />
+                        <Button Content="TXT → VAR" Click="VarBuildMapped_Click" />
                     </StackPanel>
-                    <TextBlock Margin="6,10" Foreground="#65777D" Text="SRP 文字格式保留 Type／Flags／Data，並對反斜線、換行及控制字元進行跳脫；Shift-JIS 無法表示的內容會以 \xHH 保留原始位元組。VAR 保留 [END] 結尾。" TextWrapping="Wrap" />
+                    <TextBlock Margin="6,10" Foreground="#65777D" Text="SRP 自動比較 CP932／UTF-8 與 nibble swap／不交換四種候選，將選定模式寫入 TXT 標頭；Type 0／1 才以文字處理，Type 2／3 及未知類型保留原始位元組。VAR 也會辨識 CP932／UTF-8。批次輸出遇到既有檔案會停止，不覆蓋翻譯成果。" TextWrapping="Wrap" />
                 </StackPanel>
             </TabItem>
         </TabControl>
@@ -173,7 +174,7 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock x:Name="StatusText" Text="就緒" Foreground="#246B75" VerticalAlignment="Center" Margin="10,0,8,0" />
                 <ProgressBar x:Name="BusyProgress" Width="92" Height="10" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center" />
-                <TextBlock Text="TmrHiroStudio 1.0.1" Foreground="#65777D" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <TextBlock Text="TmrHiroStudio 1.0.2" Foreground="#65777D" VerticalAlignment="Center" Margin="12,0,0,0" />
             </StackPanel>
         </DockPanel>
     </Grid>

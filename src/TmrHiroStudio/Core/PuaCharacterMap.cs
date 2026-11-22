@@ -7,9 +7,10 @@ using System.Text;
 namespace TmrHiroStudio.Core
 {
     /// <summary>
-    /// CP932 使用者自訂字元（EUDC / Private Use Area）對照表。
-    /// 映射檔放在 EXE 同一資料夾，使用 UTF-8 TSV：Bytes<TAB>PrivateUse<TAB>Replacement。
-    /// 未列入對照表的 EUDC 位元組一律保留為 \xHH，不猜測字義。
+    /// CP932 EUDC 字元提示表。
+    /// TSV 欄位：CP932 位元組<TAB>CP932 解碼後的 PUA 碼位<TAB>可供人工辨識的字形提示。
+    /// 注意：第三欄只作為文字匯出的顯示提示，絕不會把一般同字字元反向編碼成 EUDC。
+    /// TXT 使用明確的 \g{F040|字形} 跳脫，避免一般漢字被誤轉成私用造字位元組。
     /// </summary>
     internal static class PuaCharacterMap
     {
@@ -18,25 +19,13 @@ namespace TmrHiroStudio.Core
 
         private sealed class MapData
         {
-            public readonly Dictionary<int, char> BytesToReplacement = new Dictionary<int, char>();
-            public readonly Dictionary<char, byte[]> ReplacementToBytes = new Dictionary<char, byte[]>();
+            public readonly Dictionary<int, char> BytesToHint = new Dictionary<int, char>();
         }
 
-        public static bool TryDecodePair(byte first, byte second, out char replacement)
+        public static bool TryDecodePair(byte first, byte second, out char displayHint)
         {
             int key = (first << 8) | second;
-            return Data.Value.BytesToReplacement.TryGetValue(key, out replacement);
-        }
-
-        public static bool TryEncodeReplacement(char value, out byte[] bytes)
-        {
-            if (Data.Value.ReplacementToBytes.TryGetValue(value, out byte[] mapped))
-            {
-                bytes = mapped;
-                return true;
-            }
-            bytes = Array.Empty<byte>();
-            return false;
+            return Data.Value.BytesToHint.TryGetValue(key, out displayHint);
         }
 
         public static bool IsEudcPair(byte first, byte second)
@@ -66,39 +55,40 @@ namespace TmrHiroStudio.Core
             {
                 string line = lines[lineNumber];
                 if (string.IsNullOrWhiteSpace(line)) continue;
-                string trimmed = line.TrimStart();
-                if (trimmed.StartsWith("#", StringComparison.Ordinal)) continue;
+                if (line.TrimStart().StartsWith("#", StringComparison.Ordinal)) continue;
 
                 string[] fields = line.Split('\t');
                 if (fields.Length != 3)
-                {
-                    throw MappingError(lineNumber, "每筆資料必須是三欄：位元組、PUA 碼位、替代字元。");
-                }
+                    throw MappingError(lineNumber, "每筆資料必須是三欄：位元組、PUA 碼位、字形提示。");
 
                 string byteText = fields[0].Trim();
                 string codePointText = fields[1].Trim();
-                string replacementText = fields[2];
+                string hintText = fields[2];
                 if (byteText.Length != 4 || codePointText.Length != 4)
                     throw MappingError(lineNumber, "位元組及 PUA 碼位都必須是四位十六進位數字。");
 
                 byte lead;
                 byte trail;
                 int codePoint;
-                if (!byte.TryParse(byteText.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out lead) ||
-                    !byte.TryParse(byteText.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out trail))
+                if (!byte.TryParse(byteText.Substring(0, 2), NumberStyles.HexNumber,
+                        CultureInfo.InvariantCulture, out lead) ||
+                    !byte.TryParse(byteText.Substring(2, 2), NumberStyles.HexNumber,
+                        CultureInfo.InvariantCulture, out trail))
                     throw MappingError(lineNumber, "CP932 位元組不是有效的十六進位數字。");
-                if (!int.TryParse(codePointText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out codePoint))
+
+                if (!int.TryParse(codePointText, NumberStyles.HexNumber,
+                        CultureInfo.InvariantCulture, out codePoint))
                     throw MappingError(lineNumber, "PUA 碼位不是有效的十六進位數字。");
+
                 if (!IsEudcPair(lead, trail))
                     throw MappingError(lineNumber, "位元組不在 CP932 EUDC 範圍 F040–F9FC。");
                 if (codePoint < 0xe000 || codePoint > 0xe757)
                     throw MappingError(lineNumber, "PUA 碼位必須位於 CP932 EUDC 範圍 U+E000–U+E757。");
-                if (replacementText.Length != 1 || char.IsSurrogate(replacementText[0]) ||
-                    char.IsControl(replacementText[0]) || char.IsWhiteSpace(replacementText[0]) || replacementText[0] == '\\')
-                    throw MappingError(lineNumber, "替代字元必須是單一 BMP 可列印字元，且不能是反斜線（跳脫字元）。");
+                if (hintText.Length != 1 || char.IsControl(hintText[0]) ||
+                    char.IsWhiteSpace(hintText[0]) || hintText[0] == '\\' || hintText[0] == '|' || hintText[0] == '}' ||
+                    char.IsSurrogate(hintText[0]))
+                    throw MappingError(lineNumber, "字形提示必須是單一可列印 BMP 字元，且不能是反斜線、豎線或右大括號。");
 
-                char privateUse = (char)codePoint;
-                char replacement = replacementText[0];
                 string decoded;
                 try
                 {
@@ -108,20 +98,18 @@ namespace TmrHiroStudio.Core
                 {
                     throw MappingError(lineNumber, "這組位元組無法由目前 CP932 解碼：" + ex.Message);
                 }
-                if (decoded.Length != 1 || decoded[0] != privateUse)
-                {
+
+                if (decoded.Length != 1 || decoded[0] != (char)codePoint)
                     throw MappingError(lineNumber,
-                        "位元組 " + byteText.ToUpperInvariant() + " 在目前 CP932 對照結果不是 U+" + codePoint.ToString("X4") + "。");
-                }
+                        "位元組 " + byteText.ToUpperInvariant() + " 在目前 CP932 對照結果不是 U+" +
+                        codePoint.ToString("X4", CultureInfo.InvariantCulture) + "。");
 
                 int key = (lead << 8) | trail;
-                if (result.BytesToReplacement.ContainsKey(key))
+                if (result.BytesToHint.ContainsKey(key))
                     throw MappingError(lineNumber, "CP932 位元組重複：" + byteText);
-                if (result.ReplacementToBytes.ContainsKey(replacement))
-                    throw MappingError(lineNumber, "替代字元重複：" + replacement);
 
-                result.BytesToReplacement.Add(key, replacement);
-                result.ReplacementToBytes.Add(replacement, new[] { lead, trail });
+                // 不限制提示字元唯一：不同遊戲造字位元組可能使用相同的可讀字形。
+                result.BytesToHint.Add(key, hintText[0]);
             }
 
             return result;

@@ -10,7 +10,8 @@ namespace TmrHiroStudio.Core
         {
             using (FileStream stream = File.OpenRead(path))
             {
-                DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(T),
+                DataContractJsonSerializer serializer = new DataContractJsonSerializer(
+                    typeof(T),
                     new DataContractJsonSerializerSettings { MaxItemsInObjectGraph = 250000 });
                 object? value = serializer.ReadObject(stream);
                 if (value is T typed) return typed;
@@ -20,33 +21,28 @@ namespace TmrHiroStudio.Core
 
         public static void Write<T>(string path, T value)
         {
-            string? directory = Path.GetDirectoryName(Path.GetFullPath(path));
-            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            string temp = path + ".tmp";
-            using (FileStream stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            byte[] bytes;
+            using (MemoryStream buffer = new MemoryStream())
             {
-                DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(T),
+                DataContractJsonSerializer serializer = new DataContractJsonSerializer(
+                    typeof(T),
                     new DataContractJsonSerializerSettings { MaxItemsInObjectGraph = 250000 });
-                serializer.WriteObject(stream, value);
+                serializer.WriteObject(buffer, value);
+                bytes = buffer.ToArray();
             }
-            if (File.Exists(path))
-            {
-                File.Replace(temp, path, null);
-            }
-            else
-            {
-                File.Move(temp, path);
-            }
+
+            BinaryUtil.WriteAtomically(path, bytes, overwrite: true);
         }
 
         public static string ReadUtf8Text(string path)
         {
-            return File.ReadAllText(path, new UTF8Encoding(false, true));
+            return File.ReadAllText(path, BinaryUtil.Utf8Strict);
         }
 
         public static void WriteUtf8Text(string path, string text)
         {
-            File.WriteAllText(path, text, new UTF8Encoding(false));
+            byte[] bytes = new UTF8Encoding(false).GetBytes(text ?? string.Empty);
+            BinaryUtil.WriteAtomically(path, bytes, overwrite: true);
         }
     }
 }
