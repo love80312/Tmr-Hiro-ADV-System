@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Windows 10 x64 portable app
+    name: Build, test and package Windows 10 x64
     runs-on: windows-2022
 
     steps:
@@ -28,60 +28,76 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore dependencies
+      - name: Restore application
         run: dotnet restore src/TmrHiroStudio/TmrHiroStudio.csproj
+
+      - name: Restore regression tests
+        run: dotnet restore tests/TmrHiroStudio.Tests/TmrHiroStudio.Tests.csproj
 
       - name: Build Release x64
         run: dotnet build src/TmrHiroStudio/TmrHiroStudio.csproj --configuration Release -p:Platform=x64 --no-restore
+
+      - name: Build regression tests
+        run: dotnet build tests/TmrHiroStudio.Tests/TmrHiroStudio.Tests.csproj --configuration Release -p:Platform=x64 --no-restore
+
+      - name: Run format regression tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $testExe = Get-ChildItem -Path 'tests/TmrHiroStudio.Tests/bin' -Filter 'TmrHiroStudio.Tests.exe' -Recurse -File |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $testExe) {
+            throw 'Regression test executable was not found.'
+          }
+          & $testExe.FullName
+          if ($LASTEXITCODE -ne 0) {
+            throw "Regression tests failed with exit code $LASTEXITCODE."
+          }
 
       - name: Prepare portable package
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $exe = Get-ChildItem -Path 'src/TmrHiroStudio/bin' -Filter 'TmrHiroStudio.exe' -Recurse -File |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-
-          if (-not $exe) {
-            throw 'Build succeeded but TmrHiroStudio.exe was not found under the project output directory.'
+          $exe = Join-Path $PWD 'src/TmrHiroStudio/bin/x64/Release/net48/TmrHiroStudio.exe'
+          if (-not (Test-Path $exe -PathType Leaf)) {
+            $exeItem = Get-ChildItem -Path 'src/TmrHiroStudio/bin' -Filter 'TmrHiroStudio.exe' -Recurse -File |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+            if (-not $exeItem) {
+              throw 'Build succeeded but TmrHiroStudio.exe was not found.'
+            }
+            $exe = $exeItem.FullName
           }
 
           $package = Join-Path $PWD 'artifacts/TmrHiroStudio-Win10-x64'
-
           if (Test-Path $package) {
             Remove-Item $package -Recurse -Force
           }
-
           New-Item -ItemType Directory -Path $package -Force | Out-Null
 
-          # 主程式
-          Copy-Item $exe.FullName (Join-Path $package 'TmrHiroStudio.exe') -Force
+          Copy-Item $exe (Join-Path $package 'TmrHiroStudio.exe') -Force
 
-          # .NET 執行設定
-          $config = $exe.FullName + '.config'
-          if (Test-Path $config) {
+          $config = $exe + '.config'
+          if (Test-Path $config -PathType Leaf) {
             Copy-Item $config (Join-Path $package 'TmrHiroStudio.exe.config') -Force
           }
 
-          # CP932 私用造字對照表
-          $puaMap = Join-Path $exe.DirectoryName 'cp932-pua-map.tsv'
-          if (Test-Path $puaMap) {
-            Copy-Item $puaMap (Join-Path $package 'cp932-pua-map.tsv') -Force
+          $puaMap = Join-Path $PWD 'src/TmrHiroStudio/cp932-pua-map.tsv'
+          if (-not (Test-Path $puaMap -PathType Leaf)) {
+            throw 'Required cp932-pua-map.tsv is missing.'
           }
+          Copy-Item $puaMap (Join-Path $package 'cp932-pua-map.tsv') -Force
 
-          # 專案文件
           Copy-Item 'README.md' $package -Force
           Copy-Item 'LICENSE' $package -Force
           Copy-Item 'THIRD_PARTY_NOTICES.md' $package -Force
 
-          # 檢查封裝內容
           Write-Host 'Portable package contents:'
           Get-ChildItem -Path $package -File |
             Select-Object Name, Length |
             Format-Table -AutoSize
-
-          Write-Host "Portable package created: $package"
 
       - name: Upload portable build
         uses: actions/upload-artifact@v4
@@ -90,4 +106,3 @@ jobs:
           path: artifacts/TmrHiroStudio-Win10-x64/
           if-no-files-found: error
           retention-days: 30
-          
