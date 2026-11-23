@@ -1,42 +1,41 @@
-# TmrHiroStudio 1.0.5 TXT 回封修正
+# GitHub 網頁版維護與建置流程（1.0.6）
 
-此套檔案是以目前 `main` 分支 1.0.4 原始碼為基礎的覆蓋／新增檔案，不會變更 PAC、GRD、SRP 二進位解析器或 nibble-swap 演算法。
+本文件適用於透過 GitHub 網頁介面維護 `love80312/Tmr-Hiro-ADV-System` 的流程。它取代舊版一次性修正包的上傳說明；舊版指引只保留作為歷史紀錄，請勿照舊文件中的舊檔案清單或測試數量操作。
 
-## 覆蓋檔案
+## 上傳 Repository 檔案
 
-1. `src/TmrHiroStudio/MainWindow.xaml`
-2. `src/TmrHiroStudio/TmrHiroStudio.csproj`
-3. `tests/TmrHiroStudio.Tests/Program.cs`
+1. 下載整理包並解壓縮。
+2. 依照 ZIP 內的相對路徑，在 GitHub `main` 分支覆蓋同名檔案或新增新檔案。不要把最外層資料夾名稱當成 Repository 子資料夾。
+3. 本次整理只更新 README、第三方參考聲明、文件索引、測試計畫、此維護說明及 Actions Workflow；不替換 PAC／GRD／SRP／VAR 核心程式碼，也不要求刪除 `test/` 樣本。
+4. 提交到 `main` 後，`push` 事件會自動執行 **Build TmrHiroStudio**。
 
-## 新增檔案
+## Actions 執行內容
 
-1. `src/TmrHiroStudio/Core/ScriptTextFileCodec.cs`
-2. `src/TmrHiroStudio/MainWindow.ScriptBuildFix.cs`
+Workflow 會依序：
 
-新 `.cs` 檔會由 SDK-style 專案自動納入，不需要修改 `.csproj` 的 Compile 清單。
+1. 還原 WPF 主程式與測試專案。
+2. 建置 Release x64 主程式。
+3. 建置回歸測試專案。
+4. 執行 20 項 SRP／VAR 格式回歸測試。
+5. 建立 `TmrHiroStudio-Win10-x64` 免安裝資料夾並上傳 Artifact。
 
-## 修正內容
+只有建置與測試全部成功，才會執行 Artifact 上傳。Artifact 目前保留 30 天；請在期限內下載保存。
 
-- 修正 TXT v4 標頭漏列造成的編碼誤判：v4 TXT 檔案本身以 UTF-8 讀取，`Encoding: GBK` 只控制 SRP Data 重新編碼。這是原本 `0x87 0x0A` CP932 解碼錯誤的根因。
-- 接受 UTF-8 BOM 與 UTF-16 BOM；無標頭的 croCKer 舊 TXT 仍採嚴格 CP932。
-- 更新標準 `TXT → SRP`、`TXT → VAR` 按鈕使用修正後的讀檔器。
-- 新增 `TXT → SRP + VAR`：同一輸入資料夾中的 `.srp.txt` 與 `.var.txt` 一起編譯；兩類都必須找到至少一個檔案；全部解析完成才提交，避免只產生一半。
-- 批次輸出仍使用原本的 no-overwrite staging 機制，不會覆蓋輸出資料夾內既有檔案。
-- 將版本標示更新為 1.0.5。
-- 新增兩項回歸測試，檢查 SRP TXT v4 UTF-8 + GBK payload，以及 VAR TXT v3 UTF-8。
+## 下載免安裝程式
 
-## CN2 原樣回封測試流程
+1. 開啟 Repository 的 **Actions**。
+2. 選擇最新成功的 **Build TmrHiroStudio** 執行紀錄。
+3. 在頁面下方的 Artifacts 區塊下載 `TmrHiroStudio-Win10-x64`。
+4. 解壓縮後執行 `TmrHiroStudio.exe`。請保留同資料夾內的 `cp932-pua-map.tsv`、`TmrHiroStudio.exe.config`（若有）、`LICENSE`、`README.md` 及 `THIRD_PARTY_NOTICES.md`。
 
-1. 用 1.0.5 開啟原本可用的 CN2 `cn.pac`，解包到新資料夾，保留 `.tmrhiro.pac.json`。
-2. 將原本的 CN2 GBK 劇本 TXT（`*.srp.txt`）與 VAR TXT（`*.var.txt`）放在同一個輸入資料夾，保留檔名及子資料夾結構。
-3. 在「TXT 檔案／資料夾」選擇上述資料夾；「二進位輸出資料夾」選擇一個全新的空資料夾。
-4. 按 `TXT → SRP + VAR`。輸出應同時包含 `.srp` 與 `.var`。
-5. 將生成的 `.srp`／`.var` 檔案複製到第 1 步的 PAC 解包資料夾，依原檔名覆蓋對應資源。**只替換腳本資源，不要刪除 manifest 或其他 PAC 資源。**
-6. 使用 PAC 頁籤的回封功能，選擇第 1 步的解包資料夾；PAC 版本選「自動（優先使用 manifest）」；輸出成新的測試 PAC。
-7. 備份原始 `cn.pac`，再用新 PAC 搭配 `CN.exe` 測試。先測試進入遊戲、劇情文字、選項、場景切換，再測存檔／讀檔。
+## 最近一次已驗證執行
 
-## 注意
+- [Actions Run #26](https://github.com/love80312/Tmr-Hiro-ADV-System/actions/runs/45211092068)
+- Commit：`952f28cb2796bf1d55b35e8bf24ac65bc45813d8`
+- 結果：主程式及測試專案建置成功，20 項回歸測試全部通過，Artifact 上傳成功。
 
-- 本次修正能修復 TXT v4 的讀取路徑；不能單憑建置成功保證 CN.exe 一定接受重建後的 PAC。
-- 「原樣」指 TXT 沒有做文字修改。因 SRP 重新序列化會重建每筆 Length，仍應先以原樣回封測試 CN.exe；不要直接覆蓋唯一原始 PAC。
-- 本環境沒有 .NET Framework 4.8／Windows WPF 建置環境，因此尚未在此執行 Windows 編譯。請以 GitHub Actions 建置及測試結果作為編譯驗證。
+後續每次提交仍應以該次 Actions 結果為準，不要把舊 Run 的成功視為新提交已通過。
+
+## 測試範圍提醒
+
+20 項自動測試主要驗證 SRP／VAR 解析、編碼、未知 bytes 保留及 PAC 層 nibble swap。它們不取代完整 PAC／GRD 樣本檢查及遊戲實機測試。測試範圍與手動清單請見 [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md)。

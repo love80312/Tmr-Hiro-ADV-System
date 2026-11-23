@@ -1,17 +1,19 @@
-# Third-party notices and research references
+# 第三方參考專案與授權聲明
 
-TmrHiroStudio is an independent implementation. No source files from the repositories below were copied into this project. Their published source and documentation were consulted to understand file layouts, known behavior, compatibility constraints and feature coverage.
+TmrHiroStudio 是獨立實作。本專案在研究 PAC、GRD、SRP／VAR 格式及比對相容行為時，參考下列公開專案的文件、格式說明或可觀察行為。依目前的程式碼檢視紀錄，沒有直接複製這些專案的原始碼。
 
-| Project | Consulted scope | License status observed during review |
+| 專案 | 參考範圍 | 檢視時的授權資訊 |
 |---|---|---|
-| [Chenx221/Tmr-Hiro_PAC_Repack](https://github.com/Chenx221/Tmr-Hiro_PAC_Repack) | PAC V1/V2 index structure, Shift-JIS names, SRP nibble transformation | MIT license file present |
-| [HOKORISAMA/Tmr-hiro-grd-tools](https://github.com/HOKORISAMA/Tmr-hiro-grd-tools) | PAC extraction behavior, GRD channel decoding | No license file was found in the inspected repository root; no source code copied |
-| [crskycode/TmrHiro_Tool](https://github.com/crskycode/TmrHiro_Tool) | GRD metadata and RLE encoder approach | No license file was found in the inspected repository root; no source code copied |
-| [TheVNConnoisseur/croCKer](https://github.com/TheVNConnoisseur/croCKer) | Earlier SRP／VAR text structure and conversion behavior | GNU GPL v3.0 file present; no source code copied |
-| [rafael-vasconcellos/VNTextPatch-net8](https://github.com/rafael-vasconcellos/VNTextPatch-net8) | Tmr-Hiro CodeScript message／choice opcodes and field boundaries | MIT license; consulted as a format reference, no source code copied |
-| [satan53x/SExtractor](https://github.com/satan53x/SExtractor) | Tmr-Hiro opcode matching and choice-prefix handling | GPL-3.0; consulted as a format reference, no source code copied |
-| [nanami5270/TmrHiro_Tool](https://github.com/nanami5270/TmrHiro_Tool) | Same GrdTool source tree observed as crskycode/TmrHiro_Tool | No license file was found in the inspected repository root; no source code copied |
-| [TheVNConnoisseur/PACkager](https://github.com/TheVNConnoisseur/PACkager) | PAC V1/V2 pack/unpack behavior and PAC-layer SRP transformation | GNU GPL v3.0 file present; no source code copied |
-| [GARbro](https://github.com/morkt/GARbro) | Public Tmr-Hiro PAC／GRD format recognition and decoder behavior | MIT license; used as a format research reference, no source code copied |
+| [Chenx221/Tmr-Hiro_PAC_Repack](https://github.com/Chenx221/Tmr-Hiro_PAC_Repack) | PAC V1／V2 索引結構、Shift-JIS 名稱、SRP nibble transformation | Repository 內有 MIT License |
+| [HOKORISAMA/Tmr-hiro-grd-tools](https://github.com/HOKORISAMA/Tmr-hiro-grd-tools) | PAC 解包行為、GRD 通道解碼 | 檢視時未在 Repository 根目錄找到授權檔；未複製原始碼 |
+| [crskycode/TmrHiro_Tool](https://github.com/crskycode/TmrHiro_Tool) | GRD metadata 與 RLE encoder 作法 | 檢視時未在 Repository 根目錄找到授權檔；未複製原始碼 |
+| [TheVNConnoisseur/croCKer](https://github.com/TheVNConnoisseur/croCKer) | 早期 SRP／VAR 文字結構與轉換行為 | Repository 內有 GNU GPL v3.0；僅作格式參考，未複製原始碼 |
+| [rafael-vasconcellos/VNTextPatch-net8](https://github.com/rafael-vasconcellos/VNTextPatch-net8) | Tmr-Hiro CodeScript 訊息／選項 opcode 與欄位邊界 | MIT License；僅作格式參考，未複製原始碼 |
+| [satan53x/SExtractor](https://github.com/satan53x/SExtractor) | Tmr-Hiro opcode 比對及選項前綴處理 | GPL-3.0；僅作格式參考，未複製原始碼 |
+| [nanami5270/TmrHiro_Tool](https://github.com/nanami5270/TmrHiro_Tool) | 與 crskycode/TmrHiro_Tool 相同的 GrdTool source tree | 檢視時未在 Repository 根目錄找到授權檔；此來源與 crskycode 項目內容相同，不視為另一套獨立實作 |
+| [TheVNConnoisseur/PACkager](https://github.com/TheVNConnoisseur/PACkager) | PAC V1／V2 pack／unpack 行為及 PAC 層 SRP transformation | Repository 內有 GNU GPL v3.0；僅作格式參考，未複製原始碼 |
+| [GARbro](https://github.com/morkt/GARbro) | Tmr-Hiro PAC／GRD 格式辨識及 decoder 行為 | MIT License；僅作格式研究參考，未複製原始碼 |
 
-This notice is not legal advice. If future changes copy or adapt code from another project, review that project's license and update this file and the applicable source notices before distributing the combined work.
+更完整的檢視內容與整合決策請參閱 [`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md) 及 [`docs/REFERENCE_REVIEW_SRP_UPDATE_1.0.4.md`](docs/REFERENCE_REVIEW_SRP_UPDATE_1.0.4.md)。
+
+本文件記錄的是檢視當時可見的授權狀態，不構成法律意見，也不代表取得任何第三方程式碼的再散布授權。若未來直接複製或改寫其他專案的程式碼，必須先重新確認該專案的授權條款，並依其要求更新本文件、原始碼聲明及本專案的授權安排。

@@ -2,10 +2,6 @@
 
 TmrHiroStudio 是供 **Tmr-Hiro ADV System** 遊戲資源使用的 Windows x64 圖形工具，處理 PAC 封包、GRD 圖像，以及 SRP／VAR 腳本。
 
-## 程式碼來源與協作
-
-本專案部分程式碼、功能修正與技術文件由 **ChatGPT（OpenAI）** 依專案維護者提出的需求協助撰寫、檢查及修正。功能整合、需求決定、實際遊戲測試與版本維護由 Repository 維護者負責。格式相容性仍應以原始資源備份及實際遊戲測試確認。
-
 ## 功能
 
 ### PAC 封包
@@ -100,10 +96,19 @@ TmrHiroStudio 是供 **Tmr-Hiro ADV System** 遊戲資源使用的 Windows x64 �
 ## 版本 1.0.6
 
 - 調整主視窗最小尺寸，讓較小解析度的螢幕也能操作。
-- GRD 與 SRP／VAR 頁面加入捲動區，避免視窗高度不足時下方控制項無法操作。
+- PAC、GRD 與 SRP／VAR 頁面加入捲動區，避免視窗高度或寬度不足時控制項無法操作。
 - 執行記錄區調整為較精簡的預設高度，並加入可拖曳分隔線以調整記錄區大小。
 - 更新版本顯示與專案版本資訊。
 
 ## 相容性與風險提示
 
 本工具會處理二進位封包及遊戲腳本。即使檔案可成功解包或回封，也不代表所有內容都能被每個遊戲版本正確讀取。建議以複製檔案進行測試，確認遊戲可正常啟動、切換場景、顯示文字與圖像後，再替換正式資源。任何格式不明或未經實測的資源，都應保留原始備份。
+
+## 參考資料與專案文件
+
+- [第三方參考專案、研究範圍與授權狀態](THIRD_PARTY_NOTICES.md)
+- [參考專案檢視與整合決策](docs/REFERENCE_REVIEW.md)
+- [SRP opcode 參考資料補充](docs/REFERENCE_REVIEW_SRP_UPDATE_1.0.4.md)
+- [PAC／GRD／SRP／VAR 格式實作筆記](docs/FORMAT_NOTES.md)
+- [自動與手動回歸測試計畫](docs/TEST_PLAN.md)
+- [文件索引與歷史紀錄](docs/README.md)
