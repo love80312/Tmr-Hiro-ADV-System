@@ -166,10 +166,11 @@
                         <Button Grid.Row="1" Grid.Column="2" Content="瀏覽" Click="ScriptBuildOutput_Click" />
                     </Grid>
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,8">
-                        <Button Content="TXT → SRP" Click="SrpBuildMapped_Click" />
-                        <Button Content="TXT → VAR" Click="VarBuildMapped_Click" />
+                        <Button Content="TXT → SRP" Click="SrpBuildFixed_Click" />
+                        <Button Content="TXT → VAR" Click="VarBuildFixed_Click" />
+                        <Button Content="TXT → SRP + VAR" Click="BothBuildFixed_Click" ToolTip="同一資料夾內的 .srp.txt 與 .var.txt 一起編譯；全部解析成功後才輸出。" />
                     </StackPanel>
-                    <TextBlock Margin="6,10" Foreground="#65777D" Text="SRP 依完整 32-bit opcode 分類訊息、旁白與選項；選項前綴及跳轉標籤會保留。PAC 解包已還原 Data nibble swap，文字匯出不再提供第二層交換選項。TXT v4 保存來源 count；回封時只有指令數變動才更新 count。未知 opcode 及非文字 Data 以 \xHH 保留。" TextWrapping="Wrap" />
+                    <TextBlock Margin="6,10" Foreground="#65777D" Text="SRP 依完整 32-bit opcode 分類訊息、旁白與選項；選項前綴及跳轉標籤會保留。TXT v4 檔案本身以 UTF-8 讀取，Encoding 標頭只決定 SRP Data 的編碼（例如 GBK）。TXT → SRP + VAR 會先完成整批解析，再一次提交輸出。" TextWrapping="Wrap" />
                 </StackPanel>
             </TabItem>
         </TabControl>
@@ -186,7 +187,7 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock x:Name="StatusText" Text="就緒" Foreground="#246B75" VerticalAlignment="Center" Margin="10,0,8,0" />
                 <ProgressBar x:Name="BusyProgress" Width="92" Height="10" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center" />
-                <TextBlock Text="TmrHiroStudio 1.0.4" Foreground="#65777D" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <TextBlock Text="TmrHiroStudio 1.0.5" Foreground="#65777D" VerticalAlignment="Center" Margin="12,0,0,0" />
             </StackPanel>
         </DockPanel>
     </Grid>

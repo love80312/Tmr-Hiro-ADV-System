@@ -14,6 +14,8 @@ namespace TmrHiroStudio.Tests
         {
             try
             {
+                Run("SRP TXT v4 UTF-8 讀取後以 GBK 正確回封", TestSrpV4Utf8Reader);
+                Run("VAR TXT v3 UTF-8 讀取", TestVarV3Utf8Reader);
                 Run("使用者提供的 GBK 三組 SRP Data 正確解碼", TestUserGbkSamples);
                 Run("opcode 0x00150050 訊息正確辨識與往返", TestMessageOpcode);
                 Run("opcode 0x00140010 選項前綴與正文往返", TestChoiceOpcode);
@@ -49,6 +51,38 @@ namespace TmrHiroStudio.Tests
             action();
             _passed++;
             Console.WriteLine("[PASS] " + name);
+        }
+
+        private static void TestSrpV4Utf8Reader()
+        {
+            const string chinese = "在迷迷糊糊中、从下面传来一种渐渐扩散的感觉。";
+            string txt =
+                "TMRHIRO-SRP-TEXT/4\n" +
+                "Encoding: GBK\n" +
+                "HeaderCount: 1\n" +
+                "ParsedCount: 1\n\n" +
+                "Type: 0\n" +
+                "Flags: 0\n" +
+                "Data: " + chinese + "\n";
+
+            // TXT v4 is UTF-8 even though the SRP payload declared in its header is GBK.
+            string decoded = ScriptTextFileCodec.Decode(new UTF8Encoding(false).GetBytes(txt));
+            Assert(decoded == txt, "SRP TXT v4 沒有以 UTF-8 原樣讀取。");
+
+            byte[] srp = ScriptTextCodec.CompileSrp(decoded);
+            var instructions = ScriptCodec.ReadSrpInstructions(srp);
+            Assert(instructions.Count == 1, "SRP TXT v4 編譯後的指令數不正確。");
+            AssertBytesEqual(BinaryUtil.GbkStrict.GetBytes(chinese), instructions[0].Data,
+                "SRP TXT v4 的 GBK 文字沒有依 Encoding 標頭回封。");
+        }
+
+        private static void TestVarV3Utf8Reader()
+        {
+            string txt = "TMRHIRO-VAR-TEXT/3\nEncoding: GBK\n变量文字\n[END]\n";
+            string decoded = ScriptTextFileCodec.Decode(new UTF8Encoding(false).GetBytes(txt));
+            Assert(decoded == txt, "VAR TXT v3 沒有以 UTF-8 原樣讀取。");
+            byte[] var = ScriptTextCodec.CompileVar(decoded);
+            Assert(ScriptTextCodec.IsValidVarBinary(var), "VAR TXT v3 編譯後未通過 VAR 結構驗證。");
         }
 
         private static void TestUserGbkSamples()
@@ -160,7 +194,7 @@ namespace TmrHiroStudio.Tests
         {
             byte[] original = BuildSrp(new[]
             {
-                NewInstruction(80, 20, new byte[] { 0x12, 0x34 }), // Length=6，PAC script 標記 0x00140050
+                NewInstruction(80, 20, new byte[] { 0x12, 0x34 }),
                 NewInstruction(0, 0, BinaryUtil.GbkStrict.GetBytes("PAC storage layer")),
                 NewInstruction(16, 3, Array.Empty<byte>())
             });
