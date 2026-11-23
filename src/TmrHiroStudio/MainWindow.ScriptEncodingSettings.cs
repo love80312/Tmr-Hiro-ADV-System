@@ -14,15 +14,5 @@ namespace TmrHiroStudio
                 ScriptTextCodec.SelectedExportEncoding = item.Tag.ToString();
             }
         }
-
-        private void ScriptExportTransform_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (sender is ComboBox combo &&
-                combo.SelectedItem is ComboBoxItem item &&
-                item.Tag != null)
-            {
-                ScriptTextCodec.SelectedExportTransform = item.Tag.ToString();
-            }
-        }
     }
 }

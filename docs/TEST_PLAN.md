@@ -1,56 +1,62 @@
-# 自動與手動回歸測試（1.0.3）
+# 自動與手動回歸測試（SRP opcode 修正版 1.0.4）
 
 ## 自動測試
 
-GitHub Actions 會先建置 WPF 主程式及 `tests/TmrHiroStudio.Tests`，再執行測試程式。任一階段失敗時，不會上傳免安裝 Artifact。測試資料由程式即時建立，不依賴外部 `test/00_01.srp` 樣本。
+GitHub Actions 會建置 WPF 主程式及 `tests/TmrHiroStudio.Tests`，再執行測試程式。任一階段失敗時，不會上傳免安裝 Artifact。測試資料由程式即時建立，不依賴本機外部 SRP 檔案。
 
-自動測試共 17 項：
+自動測試共 18 項：
 
-1. GBK／CP936 SRP 手動編碼及 byte-exact 往返。
-2. GBK／CP936 SRP 搭配獨立 `NIBBLE_SWAP` 的往返。
-3. CP932 SRP 手動編碼往返。
-4. UTF-8 SRP 手動編碼往返。
-5. RAW SRP 對未知位元組的逐 byte 保留。
-6. 無效 GBK 位元組以 `\xHH` 保留，不使用替代字元。
-7. GBK／CP936 私用造字 bytes 以 `\xHH` 保留，不當成通用 Unicode 字形。
-8. SRP 原始 `HeaderCount` 在未改變指令筆數時保留。
-9. 新增／刪除指令後更新 `HeaderCount`。
-10. 舊版 SRP TXT v2 相容回封。
-11. GBK／CP936 VAR 手動編碼往返。
-12. CP932 VAR 往返。
-13. UTF-8 VAR 往返。
-14. RAW VAR 往返。
-15. 舊版 VAR TXT v2 相容回封。
-16. PAC SRP 必須通過完整指令結構及 footer 驗證，僅有開頭標記的截斷資料不得被識別為 SRP。
-17. PAC 層 nibble swap 的可逆性。
+1. 使用者提供的三組 GBK 原始 Data bytes 可完整解碼並逐 byte 回封。
+2. `0x00150050`（Type 80／Flags 21）訊息指令可辨識及往返。
+3. `0x00140010`（Type 16／Flags 20）選項前綴與後續文字往返。
+4. 低 16 位為 0 的旁白／一般文字可辨識。
+5. 未知 opcode Data 以原始 bytes 保留。
+6. 不含 Type 16／Flags 3 footer 的有效 SRP 可解析。
+7. 原始 HeaderCount 與實際指令筆數不一致時，完整資料仍可解析且原值可保留。
+8. 新增／刪除指令後更新 HeaderCount。
+9. PAC SRP 標記（首筆 length=6、opcode 0x00140050）及 PAC 層 nibble swap 可逆。
+10. 截斷的 SRP 指令拒絕解析。
+11. 無效 GBK bytes 以 `\xHH` 保留。
+12. GBK／CP936 VAR 往返。
+13. CP932 VAR 往返。
+14. UTF-8 VAR 往返。
+15. RAW VAR 往返。
+16. 舊版 SRP TXT v3 相容。
+17. 舊版 SRP TXT v3 的 Type 2／3 仍依舊格式以二進位保留。
+18. 舊版 VAR TXT v2 相容。
 
-以上測試驗證合成資料在編碼、轉換及結構上的預期行為；不代表已使用 `cn.pac`／`jp.pac` 完成實機驗證，也不代表所有引擎變體均已確認。
+這些案例驗證程式的結構處理與保真行為；不等於已完成整份 `cn.pac`／`jp.pac` 逐筆掃描或遊戲載入測試。
 
 ## 手動實機測試
 
 ### PAC／SRP
 
-- [ ] 分別使用實際日文版及簡體中文版 PAC 解包，確認 SRP 都能被識別，而不是大量變成 `.bin`。
-- [ ] 日文版 SRP 匯出時選 `CP932`；簡體中文版選 `GBK／CP936`。比較實際字串，不要只憑少量共同漢字判斷。
-- [ ] `Transform` 預設為 `NONE`。只有確認該 SRP 的文字 Data 還需要高低 4 位交換時才選 `NIBBLE_SWAP`。不要因選擇 GBK 而啟用交換。
-- [ ] TXT v3 標頭保留 `Encoding`、`Transform`、`HeaderCount`、`ParsedCount`；編輯文字後回封，確認 Type／Flags／非文字 Data／指令順序及 footer。
-- [ ] 不修改指令筆數時，確認原始 count 欄位保留；新增或刪除指令後，確認 count 更新為新筆數。
-- [ ] 回封 PAC 後放入遊戲副本測試；原始遊戲檔案先備份，不要直接覆蓋唯一副本。
+- [ ] 以實際日文版及簡體中文版 PAC 分別解包，確認 SRP 資源可被辨識。
+- [ ] SRP → TXT 時，日文內容選 CP932；簡體中文內容選 GBK／CP936。不要依賴檔名中的 `jp`／`cn` 判斷每一筆 Data 的編碼。
+- [ ] 確認 TXT 使用 `TMRHIRO-SRP-TEXT/4`，並保留 Encoding、HeaderCount、ParsedCount 標頭。
+- [ ] 確認 `Type 80／Flags 21` 訊息、Type 0 旁白及 `Type 16／Flags 20` 選項均可見。
+- [ ] 確認選項前三個 Data bytes 以 `\xHH` 保留，標籤／跳轉目標沒有被重寫。
+- [ ] 確認圖片、音效、未知 opcode 的 Data 以 `\xHH` 保留。
+- [ ] TXT → SRP 後重新讀取，比對 Type、Flags、Data 及指令次序。
+- [ ] 未修改指令筆數時保留來源 HeaderCount；指令筆數改變時更新 HeaderCount。
+- [ ] 回封 PAC 後，以遊戲副本測試；正式資料先備份。
 
 ### VAR
 
-- [ ] 日文版 VAR 選 CP932，簡體中文版 VAR 選 GBK／CP936，UTF-8 資料選 UTF-8。
-- [ ] 檢查 `[END]` 結尾及空字串記錄，修改後回封並在遊戲副本測試。
+- [ ] 日文 VAR 使用 CP932；簡體中文 VAR 使用 GBK／CP936；UTF-8 資料使用 UTF-8。
+- [ ] 確認 `[END]` 結尾、空字串與長度欄位可正確往返。
 
 ### 安全及相容性
 
-- [ ] 無法確認文字編碼時選 RAW，確認所有資料以 `\xHH` 保留；不要把 RAW 當成一般文字翻譯。
-- [ ] 舊版 TXT v1／v2 及無標頭 croCKer TXT 使用副本測試相容性。
-- [ ] 檢查輸出路徑已存在時程式會拒絕覆蓋。
-- [ ] 使用損壞或截斷的 SRP／PAC 測試時，程式應回報錯誤或保留為 `.bin`，不可直接當成有效腳本處理。
+- [ ] 無法確認編碼時選 RAW，確認資料以 `\xHH` 保留。
+- [ ] 舊版 SRP TXT v1／v2／v3 與無標頭 croCKer TXT 使用副本測試相容性。
+- [ ] 已存在的輸出檔案不會被靜默覆蓋。
+- [ ] 損壞或截斷的 SRP／PAC 應拒絕處理或保留為未知資源，不可輸出部分解碼結果。
 
-## 尚未完成的驗證範圍
+## 已知尚未完成的驗證
 
-- [ ] 直接以目前 Repository 的 `test/cn.pac`、`test/jp.pac` 測試實際索引、SRP 內容及完整回封。這兩個 PAC 是二進位樣本，需在可讀取原始檔案的本機或 GitHub Actions 環境執行。
-- [ ] 真正的遊戲載入測試。
-- [ ] 不同遊戲版本、私用造字字型及未公開 SRP Type 的語意驗證。
+- [ ] 對目前 Repository 中的完整 `test/cn.pac`、`test/jp.pac` 執行逐筆 opcode／編碼統計與整包 round-trip。
+- [ ] 在授權遊戲副本中驗證回封 PAC 可正常載入。
+- [ ] 驗證不同遊戲版本中尚未確認的 opcode、特殊文字控制碼及私用造字。
+
+本次產出環境沒有 .NET Framework 4.8／MSBuild，因此本地未執行 Windows WPF 編譯及測試。請以 GitHub Actions 的實際結果作最終建置確認。

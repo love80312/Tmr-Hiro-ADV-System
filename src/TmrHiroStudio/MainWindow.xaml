@@ -135,21 +135,13 @@
                     </Grid>
                     <StackPanel Orientation="Horizontal" Margin="4,5,4,7" VerticalAlignment="Center">
                         <Label Content="文字編碼" Padding="4" VerticalAlignment="Center" />
-                        <ComboBox x:Name="ScriptExportEncoding" Width="164" Margin="2,0,12,0"
+                        <ComboBox x:Name="ScriptExportEncoding" Width="190" Margin="2,0,12,0"
                                   SelectedIndex="0" SelectionChanged="ScriptExportEncoding_SelectionChanged"
-                                  ToolTip="選擇腳本 Data 的文字編碼；選項會寫入 TXT 標頭，回封時自動沿用。">
+                                  ToolTip="選擇 SRP／VAR Data 的文字編碼；選項會寫入 TXT 標頭，回封時自動沿用。">
                             <ComboBoxItem Content="CP932（Shift-JIS）" Tag="CP932" />
                             <ComboBoxItem Content="GBK／CP936（簡體中文）" Tag="GBK" />
                             <ComboBoxItem Content="UTF-8" Tag="UTF8" />
                             <ComboBoxItem Content="RAW（只匯出位元組）" Tag="RAW" />
-                            <ComboBoxItem Content="自動偵測（僅供參考）" Tag="AUTO" />
-                        </ComboBox>
-                        <Label Content="SRP Data Transform" Padding="4" VerticalAlignment="Center" />
-                        <ComboBox x:Name="ScriptExportTransform" Width="150" Margin="2,0,4,0"
-                                  SelectedIndex="0" SelectionChanged="ScriptExportTransform_SelectionChanged"
-                                  ToolTip="與文字編碼獨立；NONE 不交換，NIBBLE_SWAP 交換每個位元組的高低 4 位。">
-                            <ComboBoxItem Content="NONE（不交換）" Tag="NONE" />
-                            <ComboBoxItem Content="NIBBLE_SWAP" Tag="NIBBLE_SWAP" />
                             <ComboBoxItem Content="自動偵測（僅供參考）" Tag="AUTO" />
                         </ComboBox>
                     </StackPanel>
@@ -177,7 +169,7 @@
                         <Button Content="TXT → SRP" Click="SrpBuildMapped_Click" />
                         <Button Content="TXT → VAR" Click="VarBuildMapped_Click" />
                     </StackPanel>
-                    <TextBlock Margin="6,10" Foreground="#65777D" Text="文字編碼與 SRP Data Transform 分開指定。預設 CP932 + NONE；簡體中文版請選 GBK／CP936。匯出時會將編碼、Transform 與 SRP 原始 count 欄位寫入 TXT v3 標頭，回封依標頭還原；不自動改動 Type／Flags／二進位 Data。RAW 會將資料以 \xHH 保留。批次輸出遇到既有檔案會停止，不覆蓋翻譯成果。" TextWrapping="Wrap" />
+                    <TextBlock Margin="6,10" Foreground="#65777D" Text="SRP 依完整 32-bit opcode 分類訊息、旁白與選項；選項前綴及跳轉標籤會保留。PAC 解包已還原 Data nibble swap，文字匯出不再提供第二層交換選項。TXT v4 保存來源 count；回封時只有指令數變動才更新 count。未知 opcode 及非文字 Data 以 \xHH 保留。" TextWrapping="Wrap" />
                 </StackPanel>
             </TabItem>
         </TabControl>
@@ -194,7 +186,7 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock x:Name="StatusText" Text="就緒" Foreground="#246B75" VerticalAlignment="Center" Margin="10,0,8,0" />
                 <ProgressBar x:Name="BusyProgress" Width="92" Height="10" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center" />
-                <TextBlock Text="TmrHiroStudio 1.0.3" Foreground="#65777D" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <TextBlock Text="TmrHiroStudio 1.0.4" Foreground="#65777D" VerticalAlignment="Center" Margin="12,0,0,0" />
             </StackPanel>
         </DockPanel>
     </Grid>
