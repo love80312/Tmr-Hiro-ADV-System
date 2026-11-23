@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
@@ -100,10 +100,9 @@ jobs:
             Format-Table -AutoSize
 
       - name: Upload portable build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TmrHiroStudio-Win10-x64
           path: artifacts/TmrHiroStudio-Win10-x64/
           if-no-files-found: error
           retention-days: 30
-
